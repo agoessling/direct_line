@@ -1,0 +1,22 @@
+load("@arm_none_eabi//toolchain:toolchain.bzl", "arm_none_eabi_toolchain")
+
+arm_none_eabi_toolchain(
+    name = "arm_none_eabi_cortex_m33_toolchain",
+    copts = [
+        "-mcpu=cortex-m33",
+        "-mthumb",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv5-sp-d16",
+    ],
+    linkopts = [
+        "-mcpu=cortex-m3",
+        "-mthumb",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv5-sp-d16",
+        "-nostartfiles",
+    ],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+)
