@@ -1,0 +1,11 @@
+module(
+    name = "direct_line",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "lint_it_all", version = "0.0.0")
+git_override(
+    module_name = "lint_it_all",
+    commit = "15209d6476ddf81173e38f609ca6d9df3afa92eb",
+    remote = "https://github.com/agoessling/lint_it_all.git",
+)
