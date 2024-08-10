@@ -2,3 +2,7 @@
 
 bazel-*
 __pycache__
+
+# BEGIN ==================== lint_it_all ====================
+compile_commands.json
+# END ==================== lint_it_all ====================
