@@ -7,6 +7,7 @@ arm_none_eabi_toolchain(
         "-mthumb",
         "-mfloat-abi=hard",
         "-mfpu=fpv5-sp-d16",
+        "-g",
     ],
     linkopts = [
         "-mcpu=cortex-m3",
@@ -14,6 +15,7 @@ arm_none_eabi_toolchain(
         "-mfloat-abi=hard",
         "-mfpu=fpv5-sp-d16",
         "-nostartfiles",
+        "-g",
     ],
     target_compatible_with = [
         "//tools/platforms/cpu:cortex_m33",
