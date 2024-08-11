@@ -19,8 +19,6 @@
       </bitfield>
       <bitfield range="" begin="17" width="1" end="17" rwaccess="RO" description="Indicates whether the PE is in Debug state" id="S_HALT" resetval="0x0">
       </bitfield>
-      <bitfield range="" begin="31" width="16" end="16" rwaccess="WO" description="A debugger must write 0xA05F to this field to enable write access to the remaining bits, otherwise the PE ignores the write access" id="DBGKEY" resetval="0x0">
-      </bitfield>
       <bitfield range="" begin="15" width="10" end="6" rwaccess="RO" description="Software should not rely on the value of a reserved. Writing any other value than the reset value may result in undefined behavior." id="RESERVED6" resetval="0x0">
       </bitfield>
       <bitfield range="" begin="5" width="1" end="5" rwaccess="RO" description="Allow imprecise entry to Debug state" id="C_SNAPSTALL" resetval="0x0">

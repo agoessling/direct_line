@@ -325,7 +325,7 @@
       </bitfield>
    </register>
    <register acronym="CFGCMD" width="32" description="Internal. Only to be used through TI provided API." id="CFGCMD" offset="0x3b0">
-      <bitfield range="" begin="32" width="29" end="4" rwaccess="RO" description="Internal. Only to be used through TI provided API." id="RESERVED4" resetval="0x0">
+      <bitfield range="" begin="31" width="28" end="4" rwaccess="RO" description="Internal. Only to be used through TI provided API." id="RESERVED4" resetval="0x0">
       </bitfield>
       <bitfield range="" begin="3" width="4" end="0" rwaccess="RW" description="Internal. Only to be used through TI provided API." id="WAITSTATE" resetval="0x2">
          <bitenum id="MAXIMUM" value="15" token="Internal. Only to be used through TI provided API." description="Internal. Only to be used through TI provided API."/>
@@ -333,7 +333,7 @@
       </bitfield>
    </register>
    <register acronym="CFGPCNT" width="32" description="Internal. Only to be used through TI provided API." id="CFGPCNT" offset="0x3b4">
-      <bitfield range="" begin="32" width="21" end="12" rwaccess="RO" description="Internal. Only to be used through TI provided API." id="RESERVED12" resetval="0x0">
+      <bitfield range="" begin="31" width="20" end="12" rwaccess="RO" description="Internal. Only to be used through TI provided API." id="RESERVED12" resetval="0x0">
       </bitfield>
       <bitfield range="" begin="11" width="8" end="4" rwaccess="RW" description="Internal. Only to be used through TI provided API." id="MAXPCNTVAL" resetval="0x0">
          <bitenum id="MAXIMUM" value="255" token="Internal. Only to be used through TI provided API." description="Internal. Only to be used through TI provided API."/>
