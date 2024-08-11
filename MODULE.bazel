@@ -18,6 +18,12 @@ use_repo(arm_toolchain, "arm_none_eabi")
 
 register_toolchains("//tools/toolchains:all")
 
+bazel_dep(name = "reg_def", version = "0.1.0")
+local_path_override(
+    module_name = "reg_def",
+    path = "../reg_def",
+)
+
 # BEGIN ==================== lint_it_all ====================
 lia_http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

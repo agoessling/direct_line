@@ -1,3 +1,6 @@
+UseColor: true
+WarningsAsErrors: "*"
+
 Checks: >
   abseil-*,
   bugprone-*,
@@ -8,7 +11,6 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
-
-WarningsAsErrors: "*"
-
-UseColor: true
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-uppercase-literal-suffix,
+  -modernize-use-trailing-return-type,

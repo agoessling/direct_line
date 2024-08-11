@@ -27,7 +27,11 @@ void ResetHandler(void) {
   // explicitly set.
   __asm volatile(
       "LDR r0, =_estack\n"
-      "MSR msp, r0\n");
+      "MSR msp, r0");
+
+  // Enable the floating point unit.
+  volatile uint32_t *const CPACR = (volatile uint32_t *)0xE000ED88;
+  *CPACR |= (0x0F << 20); // NOLINT(readability-magic-numbers)
 
   uint32_t *src;  // NOLINT(cppcoreguidelines-init-variables)
   uint32_t *dst;  // NOLINT(cppcoreguidelines-init-variables)
