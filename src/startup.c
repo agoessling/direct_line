@@ -31,7 +31,7 @@ void ResetHandler(void) {
 
   // Enable the floating point unit.
   volatile uint32_t *const CPACR = (volatile uint32_t *)0xE000ED88;
-  *CPACR |= (0x0F << 20); // NOLINT(readability-magic-numbers)
+  *CPACR |= (0x0F << 20);  // NOLINT(readability-magic-numbers)
 
   uint32_t *src;  // NOLINT(cppcoreguidelines-init-variables)
   uint32_t *dst;  // NOLINT(cppcoreguidelines-init-variables)
@@ -74,66 +74,69 @@ void ResetHandler(void) {
 
 // clang-format off
 
-// Create weak alias to trap for all interrupts.
-__attribute__((weak)) void NmiHandler(void) { while(true) {} }
-__attribute__((weak)) void HardFaultHandler(void) { while(true) {} }
-__attribute__((weak)) void MemManageHandler(void) { while(true) {} }
-__attribute__((weak)) void BusFaultHandler(void) { while(true) {} }
-__attribute__((weak)) void UsageFaultHandler(void) { while(true) {} }
-__attribute__((weak)) void SecureFaultHandler(void) { while(true) {} }
-__attribute__((weak)) void SvcHandler(void) { while(true) {} }
-__attribute__((weak)) void DebugMonitorHandler(void) { while(true) {} }
-__attribute__((weak)) void PendSvHandler(void) { while(true) {} }
-__attribute__((weak)) void SysTickHandler(void) { while(true) {} }
-__attribute__((weak)) void GpioHandler(void) { while(true) {} }
-__attribute__((weak)) void I2c0Handler(void) { while(true) {} }
-__attribute__((weak)) void RfCcPe1Handler(void) { while(true) {} }
-__attribute__((weak)) void PkaHandler(void) { while(true) {} }
-__attribute__((weak)) void AonRtcHandler(void) { while(true) {} }
-__attribute__((weak)) void Uart0Handler(void) { while(true) {} }
-__attribute__((weak)) void AuxSwEvent0Handler(void) { while(true) {} }
-__attribute__((weak)) void Ssi0Handler(void) { while(true) {} }
-__attribute__((weak)) void Ssi1Handler(void) { while(true) {} }
-__attribute__((weak)) void RfCcPe0Handler(void) { while(true) {} }
-__attribute__((weak)) void RfcHardwareHandler(void) { while(true) {} }
-__attribute__((weak)) void RfcCmdAckHandler(void) { while(true) {} }
-__attribute__((weak)) void I2sHandler(void) { while(true) {} }
-__attribute__((weak)) void AuxSwEvent1Handler(void) { while(true) {} }
-__attribute__((weak)) void WatchdogHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer0AHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer0BHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer1AHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer1BHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer2AHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer2BHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer3AHandler(void) { while(true) {} }
-__attribute__((weak)) void Timer3BHandler(void) { while(true) {} }
-__attribute__((weak)) void CryptoHandler(void) { while(true) {} }
-__attribute__((weak)) void UdmaHandler(void) { while(true) {} }
-__attribute__((weak)) void UdmaErrHandler(void) { while(true) {} }
-__attribute__((weak)) void FlashHandler(void) { while(true) {} }
-__attribute__((weak)) void SwEvent0Handler(void) { while(true) {} }
-__attribute__((weak)) void AuxCombEventHandler(void) { while(true) {} }
-__attribute__((weak)) void AonProgHandler(void) { while(true) {} }
-__attribute__((weak)) void DynProgHandler(void) { while(true) {} }
-__attribute__((weak)) void AuxCompAHandler(void) { while(true) {} }
-__attribute__((weak)) void AuxAdcHandler(void) { while(true) {} }
-__attribute__((weak)) void TrngHandler(void) { while(true) {} }
-__attribute__((weak)) void OscHandler(void) { while(true) {} }
-__attribute__((weak)) void AuxTimer2Handler(void) { while(true) {} }
-__attribute__((weak)) void Uart1Handler(void) { while(true) {} }
-__attribute__((weak)) void BatMonHandler(void) { while(true) {} }
-__attribute__((weak)) void Ssi2Handler(void) { while(true) {} }
-__attribute__((weak)) void Ssi3Handler(void) { while(true) {} }
-__attribute__((weak)) void Uart2Handler(void) { while(true) {} }
-__attribute__((weak)) void Uart3Handler(void) { while(true) {} }
-__attribute__((weak)) void I2c1Handler(void) { while(true) {} }
-__attribute__((weak)) void SwEv1Handler(void) { while(true) {} }
-__attribute__((weak)) void SwEv2Handler(void) { while(true) {} }
-__attribute__((weak)) void SwEv3Handler(void) { while(true) {} }
-__attribute__((weak)) void SwEv4Handler(void) { while(true) {} }
+// Create default traps for all interrupts.
+// In order to utilize a more interesting interrupt handler, replace the static handler definition
+// below with a non-static declaration.
+static void NmiHandler(void) { while(true) {} }
+static void HardFaultHandler(void) { while(true) {} }
+static void MemManageHandler(void) { while(true) {} }
+static void BusFaultHandler(void) { while(true) {} }
+static void UsageFaultHandler(void) { while(true) {} }
+static void SecureFaultHandler(void) { while(true) {} }
+static void SvcHandler(void) { while(true) {} }
+static void DebugMonitorHandler(void) { while(true) {} }
+static void PendSvHandler(void) { while(true) {} }
+static void SysTickHandler(void) { while(true) {} }
+static void GpioHandler(void) { while(true) {} }
+static void I2c0Handler(void) { while(true) {} }
+static void RfCcPe1Handler(void) { while(true) {} }
+static void PkaHandler(void) { while(true) {} }
+static void AonRtcHandler(void) { while(true) {} }
+static void Uart0Handler(void) { while(true) {} }
+static void AuxSwEvent0Handler(void) { while(true) {} }
+static void Ssi0Handler(void) { while(true) {} }
+static void Ssi1Handler(void) { while(true) {} }
+static void RfCcPe0Handler(void) { while(true) {} }
+static void RfcHardwareHandler(void) { while(true) {} }
+static void RfcCmdAckHandler(void) { while(true) {} }
+static void I2sHandler(void) { while(true) {} }
+static void AuxSwEvent1Handler(void) { while(true) {} }
+static void WatchdogHandler(void) { while(true) {} }
+static void Timer0AHandler(void) { while(true) {} }
+static void Timer0BHandler(void) { while(true) {} }
+static void Timer1AHandler(void) { while(true) {} }
+static void Timer1BHandler(void) { while(true) {} }
+static void Timer2AHandler(void) { while(true) {} }
+static void Timer2BHandler(void) { while(true) {} }
+static void Timer3AHandler(void) { while(true) {} }
+static void Timer3BHandler(void) { while(true) {} }
+static void CryptoHandler(void) { while(true) {} }
+static void UdmaHandler(void) { while(true) {} }
+static void UdmaErrHandler(void) { while(true) {} }
+static void FlashHandler(void) { while(true) {} }
+static void SwEvent0Handler(void) { while(true) {} }
+static void AuxCombEventHandler(void) { while(true) {} }
+static void AonProgHandler(void) { while(true) {} }
+static void DynProgHandler(void) { while(true) {} }
+static void AuxCompAHandler(void) { while(true) {} }
+static void AuxAdcHandler(void) { while(true) {} }
+static void TrngHandler(void) { while(true) {} }
+static void OscHandler(void) { while(true) {} }
+static void AuxTimer2Handler(void) { while(true) {} }
+static void Uart1Handler(void) { while(true) {} }
+static void BatMonHandler(void) { while(true) {} }
+static void Ssi2Handler(void) { while(true) {} }
+static void Ssi3Handler(void) { while(true) {} }
+static void Uart2Handler(void) { while(true) {} }
+static void Uart3Handler(void) { while(true) {} }
+static void I2c1Handler(void) { while(true) {} }
+static void SwEv1Handler(void) { while(true) {} }
+static void SwEv2Handler(void) { while(true) {} }
+static void SwEv3Handler(void) { while(true) {} }
+static void SwEv4Handler(void) { while(true) {} }
 
-__attribute__((section(".isr_vector"))) void (* const isr_vectors[])(void) = {// NOLINT(cppcoreguidelines-interfaces-global-init)
+// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
+__attribute__((section(".isr_vector"))) void (* const isr_vectors[])(void) = {
   (void (* const)(void))&_estack,
   ResetHandler,
   NmiHandler,
