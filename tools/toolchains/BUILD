@@ -7,6 +7,7 @@ arm_none_eabi_toolchain(
         "-mthumb",
         "-mfloat-abi=hard",
         "-mfpu=fpv5-sp-d16",
+        "-fno-exceptions",
         "-g",
     ],
     linkopts = [

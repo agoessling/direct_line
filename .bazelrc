@@ -16,3 +16,5 @@ test --test_output=errors
 test --test_env=GTEST_COLOR=yes
 
 build:m33 --platforms=//tools/platforms:bare_metal_m33
+# This should be part of the toolchain, but there isn't an option.
+build:m7 --cxxopt="-fno-rtti"
