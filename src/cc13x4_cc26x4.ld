@@ -4,6 +4,7 @@ STACK_SIZE = 4K;
 
 MEMORY {
   FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 1M
+  CCFG (r) : ORIGIN = 0x50000000, LENGTH = 2K
   SRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
 }
 
@@ -57,6 +58,10 @@ SECTIONS {
     __fini_array_end = .;
   } >FLASH
 
+  .ccfg : {
+    KEEP(*(.ccfg))
+  } >CCFG
+
   /* Stack is allocated at beginning of RAM so a stack overflow will generate a fault. */
   .stack (NOLOAD) : ALIGN(8) {
     . += STACK_SIZE;
@@ -81,6 +86,11 @@ SECTIONS {
     *(COMMON)
     . = ALIGN(4);
     _ebss = .;
+  } >SRAM
+
+  /* Necessary for TI Driverlib interrupt library (unused). */
+  .ramVecs (NOLOAD) : ALIGN_WITH_INPUT {
+    KEEP(*(.ramVecs))
   } >SRAM
 
   /* Catch and error on any unassigned input sections. */

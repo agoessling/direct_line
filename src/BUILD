@@ -15,11 +15,10 @@ cc_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":cc1354p10_reg_def",
         ":cc13x4_cc26x4.ld",
         ":startup",
         ":freertos_kernel",
-        ":power_clock",
+        ":ccfg",
     ],
     features = ["generate_linkmap"],
 )
@@ -32,6 +31,9 @@ cc_library(
     target_compatible_with = [
         "//tools/platforms/cpu:cortex_m33",
         "@platforms//os:none",
+    ],
+    deps = [
+        "@ti_simplelink//:driverlib",
     ],
 )
 
@@ -52,6 +54,15 @@ register_definition(
     data = ["//third_party/ti/targetdb:all_files"],
     definition_file = "//third_party/ti/targetdb:devices/cc1354p10.xml",
     definition_type = "ti",
+)
+
+cc_library(
+    name = "ccfg",
+    srcs = ["ccfg.c"],
+    deps = ["@ti_simplelink//:ccfg"],
+    # This library defines the CCFG data structure which is required to be linked in the final
+    # binary but is not referenced anywhere.
+    alwayslink = True,
 )
 
 cc_library(

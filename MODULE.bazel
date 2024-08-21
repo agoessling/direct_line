@@ -34,6 +34,14 @@ http_archive(
     url = "https://github.com/FreeRTOS/FreeRTOS-Kernel/releases/download/V11.1.0/FreeRTOS-KernelV11.1.0.zip",
 )
 
+http_archive(
+    name = "ti_simplelink",
+    build_file = "//third_party/ti:simplelink.BUILD",
+    sha256 = "6ca764a668a0b804383e7407a792c1b1b944c9b428712c64dc46782f02cecc12",
+    strip_prefix = "simplelink-lowpower-f2-sdk-lpf2-7.41.00.17",
+    url = "https://github.com/TexasInstruments/simplelink-lowpower-f2-sdk/archive/refs/tags/lpf2-7.41.00.17.zip",
+)
+
 # BEGIN ==================== lint_it_all ====================
 lia_http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
