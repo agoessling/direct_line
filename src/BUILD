@@ -21,6 +21,7 @@ cc_binary(
         ":freertos_kernel",
         ":power_clock",
     ],
+    features = ["generate_linkmap"],
 )
 
 cc_library(
