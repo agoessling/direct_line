@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <ti/devices/cc13x4_cc26x4/driverlib/setup.h>
+#include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
 
 // NOLINTBEGIN(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -34,6 +35,8 @@ void ResetHandler(void) {
   // Enable the floating point unit.
   volatile uint32_t *const CPACR = (volatile uint32_t *)0xE000ED88;
   *CPACR |= (0x0F << 20);  // NOLINT(readability-magic-numbers)
+
+  IntMasterDisable();
 
   SetupTrimDevice();
 

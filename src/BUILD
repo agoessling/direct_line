@@ -1,5 +1,6 @@
 load("@reg_def//:defs.bzl", "register_definition")
 load("//third_party/freertos:freertos.bzl", "freertos_library")
+load("//tools/debug:flash.bzl", "flash_target")
 
 cc_binary(
     name = "main",
@@ -19,8 +20,22 @@ cc_binary(
         ":startup",
         ":freertos_kernel",
         ":ccfg",
+        ":board",
     ],
     features = ["generate_linkmap"],
+)
+
+cc_library(
+    name = "board",
+    srcs = ["board.cc"],
+    hdrs = ["board.hh"],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+    deps = [
+        "@ti_simplelink//:driverlib",
+    ],
 )
 
 cc_library(
@@ -37,15 +52,10 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "power_clock",
-    srcs = ["power_clock.cc"],
-    hdrs = ["power_clock.hh"],
-    target_compatible_with = [
-        "//tools/platforms/cpu:cortex_m33",
-        "@platforms//os:none",
-    ],
-    deps = [":cc1354p10_reg_def"],
+flash_target(
+    name = "main.flash",
+    ccxml = "//tools/debug:xds110_cc1354p10.ccxml",
+    binary = ":main",
 )
 
 register_definition(
