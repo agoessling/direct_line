@@ -1,3 +1,5 @@
+// clang-format off
+
 // Use default VDDR trim (limited to 12.5dBm)
 #define CCFG_FORCE_VDDR_HH                              0x0
 
@@ -54,3 +56,5 @@
 
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include <ti/devices/cc13x4_cc26x4/startup_files/ccfg.c>
+
+// clang-format on

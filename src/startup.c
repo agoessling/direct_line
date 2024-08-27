@@ -2,8 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <ti/devices/cc13x4_cc26x4/driverlib/setup.h>
 #include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
+#include <ti/devices/cc13x4_cc26x4/driverlib/setup.h>
 
 // NOLINTBEGIN(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -75,8 +75,7 @@ void ResetHandler(void) {
   // context.
 
   // Catch if main() returns.
-  while (true) {
-  }
+  while (true) {}
 }
 
 // clang-format off

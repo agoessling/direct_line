@@ -7,6 +7,7 @@ cc_binary(
     srcs = [
         "main.cc",
     ],
+    features = ["generate_linkmap"],
     linkopts = [
         "-T $(execpath :cc13x4_cc26x4.ld)",
     ],
@@ -16,13 +17,12 @@ cc_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":cc13x4_cc26x4.ld",
-        ":startup",
-        ":freertos_kernel",
-        ":ccfg",
         ":board",
+        ":cc13x4_cc26x4.ld",
+        ":ccfg",
+        ":freertos_kernel",
+        ":startup",
     ],
-    features = ["generate_linkmap"],
 )
 
 cc_library(
@@ -54,8 +54,8 @@ cc_library(
 
 flash_target(
     name = "main.flash",
-    ccxml = "//tools/debug:xds110_cc1354p10.ccxml",
     binary = ":main",
+    ccxml = "//tools/debug:xds110_cc1354p10.ccxml",
 )
 
 register_definition(

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include <array>
+#include <cstdint>
 
 #include <ti/devices/cc13x4_cc26x4/driverlib/gpio.h>
 #include <ti/devices/cc13x4_cc26x4/driverlib/ioc.h>
