@@ -5,6 +5,8 @@
 #include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
 #include <ti/devices/cc13x4_cc26x4/driverlib/setup.h>
 
+#include "src/cc1354p10_reg_def.h"
+
 // NOLINTBEGIN(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 
 // Exported from linker script.
@@ -32,11 +34,13 @@ void ResetHandler(void) {
       "LDR r0, =_estack\n"
       "MSR msp, r0");
 
+  // This should also be redundant, but the VTOR seems to point to ROM (0x10000000) on reset...
+  IntMasterDisable();
+  CPU_SCB->VTOR.raw = 0x00000000;
+
   // Enable the floating point unit.
   volatile uint32_t *const CPACR = (volatile uint32_t *)0xE000ED88;
   *CPACR |= (0x0F << 20);  // NOLINT(readability-magic-numbers)
-
-  IntMasterDisable();
 
   SetupTrimDevice();
 
@@ -92,7 +96,7 @@ static void SecureFaultHandler(void) { while(true) {} }
 static void SvcHandler(void) { while(true) {} }
 static void DebugMonitorHandler(void) { while(true) {} }
 static void PendSvHandler(void) { while(true) {} }
-static void SysTickHandler(void) { while(true) {} }
+void SysTickHandler(void);
 static void GpioHandler(void) { while(true) {} }
 static void I2c0Handler(void) { while(true) {} }
 static void RfCcPe1Handler(void) { while(true) {} }

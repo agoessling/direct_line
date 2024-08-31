@@ -3,11 +3,18 @@
 #include <cstdint>
 
 #include <ti/devices/cc13x4_cc26x4/driverlib/cpu.h>
+#include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
 
 using board::GpioPin;
 
+extern "C" {
+void SysTickHandler() {}
+}
+
 int main() {
   board::BoardInit();
+
+  IntMasterEnable();
 
   bool state = false;
   while (true) {

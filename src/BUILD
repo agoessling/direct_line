@@ -48,6 +48,7 @@ cc_library(
         "@platforms//os:none",
     ],
     deps = [
+        ":cc1354p10_reg_def",
         "@ti_simplelink//:driverlib",
     ],
 )
