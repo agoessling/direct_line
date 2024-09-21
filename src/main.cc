@@ -1,37 +1,33 @@
 #include "src/board.hh"
 
+#include <array>
 #include <cstdint>
 
-#include <ti/devices/cc13x4_cc26x4/driverlib/cpu.h>
-#include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
+#include <FreeRTOS.h>
+#include <task.h>
 
 using board::GpioPin;
 
-extern "C" {
-void SysTickHandler() {}
+static void LedTaskFunc(void * /*params*/) {
+  while (true) {
+    constexpr uint32_t kDelayMs = 500;
+    vTaskDelay(kDelayMs);
+    board::GpioToggle(GpioPin::kRedLed);
+  }
 }
 
 int main() {
   board::BoardInit();
 
-  IntMasterEnable();
+  // These must be declared static as the stack is reset below.
+  static StaticTask_t led_tcb;
+  constexpr size_t kLedStackSize = 200;
+  static std::array<StackType_t, kLedStackSize> led_stack;
+  xTaskCreateStatic(LedTaskFunc, "LED", led_stack.size(), nullptr, 1, led_stack.data(), &led_tcb);
 
-  bool state = false;
-  while (true) {
-    if (state) {
-      board::GpioSet(GpioPin::kRedLed);
-      board::GpioClear(GpioPin::kGreenLed);
-    } else {
-      board::GpioClear(GpioPin::kRedLed);
-      board::GpioSet(GpioPin::kGreenLed);
-    }
-    state = !state;
-
-    constexpr uint32_t kDelayUs = 500'000;
-    constexpr uint32_t kCpuFreqMhz = 48;
-    constexpr uint32_t kCyclesPer = 4;
-    CPUdelay(kDelayUs * (kCpuFreqMhz / kCyclesPer));
-  }
+  // Reminder: The main stack is reset in this function so local stack variables cease to exist.
+  // This is why the task variables above must be declared "static".
+  vTaskStartScheduler();
 
   return 0;
 }

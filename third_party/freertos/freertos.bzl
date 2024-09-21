@@ -44,5 +44,6 @@ def freertos_library(name, port, freertos_config_lib, heap = None, **kwargs):
             "@freertos_kernel//:common_include",
             "@freertos_kernel//:{}_include".format(port),
         ],
+        alwayslink = True,
         **kwargs
     )

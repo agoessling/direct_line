@@ -1,5 +1,20 @@
 UseColor: true
 WarningsAsErrors: "*"
+ExtraArgs: [
+  "--target=arm-none-eabi",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/../../../../arm-none-eabi/include/c++/13.2.1",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/../../../../arm-none-eabi/include/c++/13.2.1/arm-none-eabi",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/../../../../arm-none-eabi/include/c++/13.2.1/backward",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/include",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/include-fixed",
+  "-isystem",
+  "/home/agoessling/.cache/bazel/_bazel_agoessling/1ab423021bf7284608f31eeb5176274f/external/toolchains_arm_gnu~~arm_toolchain~arm_none_eabi_linux_x86_64/bin/../lib/gcc/arm-none-eabi/13.2.1/../../../../arm-none-eabi/include",
+]
 
 Checks: >
   abseil-*,
@@ -14,4 +29,6 @@ Checks: >
   -cppcoreguidelines-avoid-magic-numbers,
   -readability-uppercase-literal-suffix,
   -modernize-use-trailing-return-type,
-  -cppcoreguidelines-pro-bounds-constant-array-index
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -clang-diagnostic-unused-command-line-argument,
+

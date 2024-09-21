@@ -21,8 +21,18 @@ cc_binary(
         ":cc13x4_cc26x4.ld",
         ":ccfg",
         ":freertos_kernel",
+        ":freertos_support",
         ":startup",
     ],
+)
+
+cc_library(
+    name = "freertos_support",
+    srcs = ["freertos_support.c"],
+    deps = [
+        ":freertos_kernel",
+    ],
+    alwayslink = True,
 )
 
 cc_library(

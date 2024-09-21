@@ -93,9 +93,9 @@ static void MemManageHandler(void) { while(true) {} }
 static void BusFaultHandler(void) { while(true) {} }
 static void UsageFaultHandler(void) { while(true) {} }
 static void SecureFaultHandler(void) { while(true) {} }
-static void SvcHandler(void) { while(true) {} }
+void SvcHandler(void);
 static void DebugMonitorHandler(void) { while(true) {} }
-static void PendSvHandler(void) { while(true) {} }
+void PendSvHandler(void);
 void SysTickHandler(void);
 static void GpioHandler(void) { while(true) {} }
 static void I2c0Handler(void) { while(true) {} }

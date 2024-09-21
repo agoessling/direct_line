@@ -34,6 +34,11 @@ SECTIONS {
     *(.ARM.exidx*)  /* Used for stack unwinding. */
   } >FLASH
 
+  .eh_frame : ALIGN_WITH_INPUT {
+    . = ALIGN(4);
+    *(.eh_frame*)  /* Used for stack unwinding. */
+  } >FLASH
+
   /* Used by __libc_init_array() for constructors and destructors. */
   .preinit_array : ALIGN_WITH_INPUT {
     . = ALIGN(4);

@@ -5,6 +5,11 @@
 
 // clang-format off
 
+// Alias ISR handler names from port
+#define SysTick_Handler                         SysTickHandler
+#define PendSV_Handler                          PendSvHandler
+#define SVC_Handler                             SvcHandler
+
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 1  // M33 port has optimized task selection.
 #define configUSE_TICKLESS_IDLE                 0
