@@ -6,12 +6,21 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "src/uart.hh"
+
 using board::GpioPin;
 
 static void LedTaskFunc(void * /*params*/) {
+  uart::Uart uart(uart::Id::kUart0);
+  auto result = uart.Configure();
+  if (!result) {
+    while (true) {}
+  }
+
   while (true) {
     constexpr uint32_t kDelayMs = 500;
     vTaskDelay(kDelayMs);
+    uart.Send("Led task tick.\r\n");
     board::GpioToggle(GpioPin::kRedLed);
   }
 }

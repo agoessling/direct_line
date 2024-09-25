@@ -17,6 +17,8 @@ namespace internal {
 
 constexpr uint32_t kRedLedId = IOID_6;
 constexpr uint32_t kGreenLedId = IOID_7;
+constexpr uint32_t kUart0RxId = IOID_12;
+constexpr uint32_t kUart0TxId = IOID_13;
 
 constexpr uint32_t GpioPinMapping(GpioPin pin) {
   constexpr std::array<uint32_t, 2> kGpioMapping = {

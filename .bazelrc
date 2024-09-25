@@ -4,17 +4,17 @@ build --copt="-Wall"
 build --copt="-Werror"
 build --copt="-fdiagnostics-color"
 build --copt="-fmax-errors=5"
-build --cxxopt="-std=c++20"
+build --cxxopt="-std=c++23"
 
 build --host_copt=-Wall
 build --host_copt=-Werror
 build --host_copt=-fdiagnostics-color
 build --host_copt=-fmax-errors=5
-build --host_cxxopt=-std=c++20
+build --host_cxxopt=-std=c++23
 
 test --test_output=errors
 test --test_env=GTEST_COLOR=yes
 
 build:m33 --platforms=//tools/platforms:bare_metal_m33
 # This should be part of the toolchain, but there isn't an option.
-build:m7 --cxxopt="-fno-rtti"
+build:m33 --cxxopt="-fno-rtti"

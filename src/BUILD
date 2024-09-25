@@ -23,6 +23,7 @@ cc_binary(
         ":freertos_kernel",
         ":freertos_support",
         ":startup",
+        ":uart",
     ],
 )
 
@@ -36,6 +37,14 @@ cc_library(
 )
 
 cc_library(
+    name = "clock",
+    hdrs = ["clock.hh"],
+    deps = [
+        "@ti_simplelink//:driverlib",
+    ],
+)
+
+cc_library(
     name = "board",
     srcs = ["board.cc"],
     hdrs = ["board.hh"],
@@ -45,6 +54,20 @@ cc_library(
     ],
     deps = [
         "@ti_simplelink//:driverlib",
+    ],
+)
+
+cc_library(
+    name = "uart",
+    srcs = ["uart.cc"],
+    hdrs = ["uart.hh"],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+    deps = [
+        ":cc1354p10_reg_def",
+        ":clock",
     ],
 )
 
