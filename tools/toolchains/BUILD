@@ -3,6 +3,7 @@ load("@arm_none_eabi//toolchain:toolchain.bzl", "arm_none_eabi_toolchain")
 arm_none_eabi_toolchain(
     name = "arm_none_eabi_cortex_m33_toolchain",
     copts = [
+        "-O2",
         "-mcpu=cortex-m33",
         "-mthumb",
         "-mfloat-abi=hard",
@@ -13,6 +14,7 @@ arm_none_eabi_toolchain(
         "-g",
     ],
     linkopts = [
+        "-O2",
         "-mcpu=cortex-m33",
         "-mthumb",
         "-mfloat-abi=hard",

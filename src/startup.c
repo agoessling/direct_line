@@ -17,11 +17,11 @@ extern uint32_t _sdata;  // Start of .data section.
 extern uint32_t _edata;  // End of .data section.
 extern uint32_t _sbss;  // Start of .bss section.
 extern uint32_t _ebss;  // End of .bss section.
-void (*__preinit_array_start)(void);  // Start of preinit function array.
-void (*__preinit_array_end)(void);  // End of preinit function array.
-void (*__init_array_start)(void);  // Start of preinit function array.
-void (*__init_array_end)(void);  // End of preinit function array.
-//
+extern uint32_t __preinit_array_start;  // Start of preinit function array.
+extern uint32_t __preinit_array_end;  // End of preinit function array.
+extern uint32_t __init_array_start;  // Start of preinit function array.
+extern uint32_t __init_array_end;  // End of preinit function array.
+
 // NOLINTEND(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 
 int main(void);  // Application main
@@ -63,13 +63,13 @@ void ResetHandler(void) {
   // Static initialization functions aggregated by compiler into .preinit_array and .init_array.
   void (**func)(void);  // NOLINT(cppcoreguidelines-init-variables)
 
-  func = &__preinit_array_start;
-  while (func < &__preinit_array_end) {
+  func = (void (**)()) & __preinit_array_start;
+  while (func < (void (**)()) & __preinit_array_end) {
     (*func++)();
   }
 
-  func = &__init_array_start;
-  while (func < &__init_array_end) {
+  func = (void (**)()) & __init_array_start;
+  while (func < (void (**)()) & __init_array_end) {
     (*func++)();
   }
 
