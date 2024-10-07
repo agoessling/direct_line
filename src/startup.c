@@ -112,7 +112,7 @@ static void RfcCmdAckHandler(void) { while(true) {} }
 static void I2sHandler(void) { while(true) {} }
 static void AuxSwEvent1Handler(void) { while(true) {} }
 static void WatchdogHandler(void) { while(true) {} }
-static void Timer0AHandler(void) { while(true) {} }
+void Timer0AHandler(void);
 static void Timer0BHandler(void) { while(true) {} }
 static void Timer1AHandler(void) { while(true) {} }
 static void Timer1BHandler(void) { while(true) {} }

@@ -3,26 +3,48 @@
 #include <cstdint>
 #include <expected>
 
+#include <ti/devices/cc13x4_cc26x4/driverlib/prcm.h>
+
 #include "src/cc1354p10_reg_def.h"
 #include "src/clock.hh"
 
 namespace uart {
 
 Uart::Uart(Id id) {
+  uint32_t power_domain = 0;
+  uint32_t peripheral = 0;
   switch (id) {
     case Id::kUart0:
       uart_ = UART0;
+      power_domain = PRCM_DOMAIN_SERIAL;
+      peripheral = PRCM_PERIPH_UART0;
       break;
     case Id::kUart1:
       uart_ = UART1;
+      power_domain = PRCM_DOMAIN_PERIPH;
+      peripheral = PRCM_PERIPH_UART1;
       break;
     case Id::kUart2:
       uart_ = UART2;
+      power_domain = PRCM_DOMAIN_PERIPH;
+      peripheral = PRCM_PERIPH_UART2;
       break;
     case Id::kUart3:
       uart_ = UART3;
+      power_domain = PRCM_DOMAIN_PERIPH;
+      peripheral = PRCM_PERIPH_UART3;
       break;
   }
+
+  // Enable power domain and peripheral.
+  PRCMPowerDomainOn(power_domain);
+  while (PRCMPowerDomainsAllOn(power_domain) != PRCM_DOMAIN_POWER_ON) {}
+
+  PRCMPeripheralRunEnable(peripheral);
+
+  // Initiate changes.
+  PRCMLoadSet();
+  while (!PRCMLoadGet()) {}
 
   Reset();
 }

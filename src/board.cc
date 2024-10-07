@@ -13,14 +13,11 @@ namespace board {
 
 void BoardInit() {
   // Enable power domains.
-  constexpr uint32_t kPowerDomains = PRCM_DOMAIN_PERIPH | PRCM_DOMAIN_SERIAL;
-
-  PRCMPowerDomainOn(kPowerDomains);
-  while (PRCMPowerDomainsAllOn(kPowerDomains) != PRCM_DOMAIN_POWER_ON) {}
+  PRCMPowerDomainOn(PRCM_DOMAIN_PERIPH);
+  while (PRCMPowerDomainsAllOn(PRCM_DOMAIN_PERIPH) != PRCM_DOMAIN_POWER_ON) {}
 
   // Enable peripherals.
   PRCMPeripheralRunEnable(PRCM_PERIPH_GPIO);
-  PRCMPeripheralRunEnable(PRCM_PERIPH_UART0);
 
   // Initiate changes.
   PRCMLoadSet();

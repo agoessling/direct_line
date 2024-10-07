@@ -35,4 +35,5 @@ Checks: >
   -clang-diagnostic-unused-command-line-argument,
   -readability-identifier-length,
   -clang-diagnostic-builtin-macro-redefined,
+  -cppcoreguidelines-avoid-non-const-global-variables
 

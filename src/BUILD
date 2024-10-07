@@ -23,6 +23,7 @@ cc_binary(
         ":freertos_kernel",
         ":freertos_support",
         ":startup",
+        ":timer",
         ":uart",
     ],
 )
@@ -41,6 +42,29 @@ cc_library(
     hdrs = ["clock.hh"],
     deps = [
         "@ti_simplelink//:driverlib",
+    ],
+)
+
+cc_library(
+    name = "interrupt",
+    hdrs = ["interrupt.hh"],
+    deps = [
+        "@ti_simplelink//:driverlib",
+    ],
+)
+
+cc_library(
+    name = "timer",
+    srcs = ["timer.cc"],
+    hdrs = ["timer.hh"],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+    deps = [
+        ":cc1354p10_reg_def",
+        ":clock",
+        ":interrupt",
     ],
 )
 
