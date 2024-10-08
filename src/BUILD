@@ -46,6 +46,13 @@ cc_library(
 )
 
 cc_library(
+    name = "memory_pool",
+    hdrs = [
+        "memory_pool.hh",
+    ],
+)
+
+cc_library(
     name = "interrupt",
     hdrs = ["interrupt.hh"],
     deps = [
