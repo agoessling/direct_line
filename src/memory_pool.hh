@@ -9,6 +9,9 @@
 #include <ranges>
 #include <utility>
 
+// Thread-safe lock-free memory pool for item type T of size N.  The memory pool must outlive all of
+// its allocated items.  On destruction all outstanding item pointers are invalidated, and no item
+// destructors are called.
 template <typename T, size_t N, bool Debug = false>
 class MemoryPool {
  private:
@@ -27,6 +30,13 @@ class MemoryPool {
   static_assert(std::atomic<uint32_t>::is_always_lock_free);
 
   MemoryPool() noexcept;
+  ~MemoryPool() noexcept = default;
+
+  // Not copyable or moveable.
+  MemoryPool(const MemoryPool&) = delete;
+  MemoryPool& operator=(const MemoryPool&) = delete;
+  MemoryPool(MemoryPool&&) = delete;
+  MemoryPool& operator=(MemoryPool&&) = delete;
 
   // Constructs in place a T in newly allocated memory.  Args are forwarded to the constructor of T.
   // If no memory is available returns an empty (nullptr) UniquePtr.
@@ -38,17 +48,24 @@ class MemoryPool {
   template <typename U>
   UniquePtr create(std::initializer_list<U> ilist) noexcept;
 
-  // Allocates memory from the pool and returns a pointer to a default initialized instance of T.
-  // If no memory is available returns an empty (nullptr) UniquePtr.
+  // Allocates memory from the pool and returns a unique pointer with a custom deleter to a default
+  // initialized instance of T. If no memory is available returns an empty (nullptr) UniquePtr.
   UniquePtr allocate() noexcept;
 
-  const DebugCounters& get_debug_counters() const { return counters_; }
+  // Allocates memory from the pool and returns a raw pointer to uninitialized memory.  Memory must
+  // be released with release_raw.  Prefer allocate with UniquePtr when suitable.  If no memory is
+  // available returns nullptr.
+  T *allocate_raw() noexcept;
+
+  // Releases memory back to the memory pool allocated with allocate_raw.  Do not use with memory
+  // allocated with allocate() or create().
+  void release_raw(T *ptr) noexcept;
+
+  // Get internal debug counters.
+  const DebugCounters& get_debug_counters() const noexcept { return counters_; }
 
  private:
   class Block;
-
-  T *allocate_raw() noexcept;
-  void release(T *ptr) noexcept;
 
   std::array<Block, N> blocks_;  // Storage for memory pool.
   Block *head_;  // Pointer to the next block to be allocated.
@@ -83,7 +100,7 @@ class MemoryPool<T, N, Debug>::BlockDeleter {
 
   void operator()(T *ptr) noexcept {
     ptr->~T();
-    pool_->release(ptr);
+    pool_->release_raw(ptr);
   }
 
  private:
@@ -176,7 +193,7 @@ inline T *MemoryPool<T, N, Debug>::allocate_raw() noexcept {
 }
 
 template <typename T, size_t N, bool Debug>
-inline void MemoryPool<T, N, Debug>::release(T *ptr) noexcept {
+inline void MemoryPool<T, N, Debug>::release_raw(T *ptr) noexcept {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   const auto block = reinterpret_cast<Block *>(ptr);
 

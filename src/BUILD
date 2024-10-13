@@ -46,6 +46,17 @@ cc_library(
 )
 
 cc_library(
+    name = "mpsc_queue",
+    hdrs = [
+        "mpsc_queue.hh",
+    ],
+    deps = [
+        ":memory_pool",
+    ],
+
+)
+
+cc_library(
     name = "memory_pool",
     hdrs = [
         "memory_pool.hh",
