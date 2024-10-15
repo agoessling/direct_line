@@ -12,42 +12,42 @@ MEMORY {
  * Specifying ALIGN_WITH_INPUT and . = ALIGN(4) is the only way to ensure minimum VMA and LMA
  * alignment */
 SECTIONS {
-  .isr_vector : ALIGN_WITH_INPUT {
+  .isr_vector (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     KEEP(*(.isr_vector))  /* Interrupt vector table */
   } >FLASH
 
-  .text : ALIGN_WITH_INPUT {
+  .text (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     *(.text)
     *(.text*)
   } >FLASH
 
-  .rodata : ALIGN_WITH_INPUT {
+  .rodata (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     *(.rodata)
     *(.rodata*)
   } >FLASH
 
-  .ARM : ALIGN_WITH_INPUT {
+  .ARM (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     *(.ARM.exidx*)  /* Used for stack unwinding. */
   } >FLASH
 
-  .eh_frame : ALIGN_WITH_INPUT {
+  .eh_frame (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     *(.eh_frame*)  /* Used for stack unwinding. */
   } >FLASH
 
   /* Used by __libc_init_array() for constructors and destructors. */
-  .preinit_array : ALIGN_WITH_INPUT {
+  .preinit_array (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     __preinit_array_start = .;
     KEEP(*(.preinit_array*))
     __preinit_array_end = .;
   } >FLASH
 
-  .init_array : ALIGN_WITH_INPUT {
+  .init_array (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     __init_array_start = .;
     KEEP(*(SORT(.init_array.*)))
@@ -55,7 +55,7 @@ SECTIONS {
     __init_array_end = .;
   } >FLASH
 
-  .fini_array : ALIGN_WITH_INPUT {
+  .fini_array (READONLY) : ALIGN_WITH_INPUT {
     . = ALIGN(4);
     __fini_array_start = .;
     KEEP(*(SORT(.fini_array.*)))
@@ -63,7 +63,7 @@ SECTIONS {
     __fini_array_end = .;
   } >FLASH
 
-  .ccfg : {
+  .ccfg (READONLY) : {
     KEEP(*(.ccfg))
   } >CCFG
 

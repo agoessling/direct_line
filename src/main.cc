@@ -6,6 +6,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include <emio/emio.hpp>
 #include "src/timer.hh"
 #include "src/uart.hh"
 
@@ -21,7 +22,14 @@ static void LedTaskFunc(void * /*params*/) {
   while (true) {
     constexpr uint32_t kDelayMs = 500;
     vTaskDelay(kDelayMs);
-    uart.Send("Led task tick.\r\n");
+
+    emio::static_buffer<32> buffer;
+    auto result = emio::format_to(buffer, "Task Delay: {:d} [ms]\r\n", kDelayMs);
+    if (!result) {
+      continue;
+    }
+    uart.Send(buffer.view());
+
     board::GpioToggle(GpioPin::kRedLed);
   }
 }
@@ -29,7 +37,6 @@ static void LedTaskFunc(void * /*params*/) {
 static timer::PeriodicTimer g_timer(timer::Id::kTimer0, interrupt::Priority::kLevel0);
 
 extern "C" {
-
 void Timer0AHandler() {
   g_timer.ClearInterrupt();
   board::GpioToggle(GpioPin::kGreenLed);

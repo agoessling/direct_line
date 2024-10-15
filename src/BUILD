@@ -17,7 +17,9 @@ cc_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "@emio",
         ":board",
+        ":stubs",
         ":cc13x4_cc26x4.ld",
         ":ccfg",
         ":freertos_kernel",
@@ -140,6 +142,12 @@ register_definition(
     data = ["//third_party/ti/targetdb:all_files"],
     definition_file = "//third_party/ti/targetdb:devices/cc1354p10.xml",
     definition_type = "ti",
+)
+
+cc_library(
+    name = "stubs",
+    srcs = ["stubs.cc"],
+    deps = ["@ti_simplelink//:driverlib"],
 )
 
 cc_library(
