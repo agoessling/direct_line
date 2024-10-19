@@ -17,16 +17,16 @@ cc_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@emio",
         ":board",
-        ":stubs",
         ":cc13x4_cc26x4.ld",
         ":ccfg",
         ":freertos_kernel",
         ":freertos_support",
         ":startup",
+        ":stubs",
         ":timer",
         ":uart",
+        "@emio",
     ],
 )
 
@@ -55,7 +55,6 @@ cc_library(
     deps = [
         ":memory_pool",
     ],
-
 )
 
 cc_library(

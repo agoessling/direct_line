@@ -7,29 +7,28 @@
 
 namespace timer {
 
-PeriodicTimer::PeriodicTimer(Id id, interrupt::Priority priority) {
+BaseTimer::BaseTimer(Id id) noexcept {
   uint32_t peripheral = 0;
-  uint32_t interrupt = 0;
   switch (id) {
     case Id::kTimer0:
       timer_ = GPT0;
+      interrupt_ = INT_GPT0A;
       peripheral = PRCM_PERIPH_TIMER0;
-      interrupt = INT_GPT0A;
       break;
     case Id::kTimer1:
       timer_ = GPT1;
+      interrupt_ = INT_GPT1A;
       peripheral = PRCM_PERIPH_TIMER1;
-      interrupt = INT_GPT1A;
       break;
     case Id::kTimer2:
       timer_ = GPT2;
+      interrupt_ = INT_GPT2A;
       peripheral = PRCM_PERIPH_TIMER2;
-      interrupt = INT_GPT2A;
       break;
     case Id::kTimer3:
       timer_ = GPT3;
+      interrupt_ = INT_GPT3A;
       peripheral = PRCM_PERIPH_TIMER3;
-      interrupt = INT_GPT3A;
       break;
   }
 
@@ -44,16 +43,9 @@ PeriodicTimer::PeriodicTimer(Id id, interrupt::Priority priority) {
   while (!PRCMLoadGet()) {}
 
   Reset();
-
-  timer_->TAMR.TAILD = 1;  // Load timeout value at next timeout instead of immediately.
-  timer_->TAMR.TAMR = 0x2;  // Periodic mode.
-  timer_->IMR.TATOIM = 1;  // Enable timer time out interrupt.
-
-  IntPrioritySet(interrupt, interrupt::DriverLibPriorityLevel(priority));
-  IntEnable(interrupt);
 }
 
-void PeriodicTimer::Reset() {
+void BaseTimer::Reset() noexcept {
   timer_->CTL.raw = 0;
   timer_->CFG.raw = 0;
   timer_->TAMR.raw = 0;
@@ -62,25 +54,34 @@ void PeriodicTimer::Reset() {
   timer_->ICLR.raw = 0xFFFFFFFF;
 }
 
-void PeriodicTimer::SetPeriod(uint32_t period_us) {
-  // Assumes GPT clock is greater than and a multiple of 1MHz.
-  const uint32_t cycles_per_us = clock::GetGptClockHz() / 1'000'000;
-  timer_->TAILR.TAILR = cycles_per_us * period_us;
-}
-
-void PeriodicTimer::Start() {
+void BaseTimer::Start() noexcept {
   timer_->CTL.TAEN = 1;
 }
 
-void PeriodicTimer::Stop() {
+void BaseTimer::Stop() noexcept {
   timer_->CTL.TAEN = 0;
 }
 
-void PeriodicTimer::ClearInterrupt() {
+PeriodicTimer::PeriodicTimer(Id id, interrupt::Priority priority) noexcept : BaseTimer(id) {
+  timer()->TAMR.TAILD = 1;  // Load timeout value at next timeout instead of immediately.
+  timer()->TAMR.TAMR = 0x2;  // Periodic mode.
+  timer()->IMR.TATOIM = 1;  // Enable timer time out interrupt.
+
+  IntPrioritySet(interrupt(), interrupt::DriverLibPriorityLevel(priority));
+  IntEnable(interrupt());
+}
+
+void PeriodicTimer::SetPeriod(uint32_t period_us) noexcept {
+  // Assumes GPT clock is greater than and a multiple of 1MHz.
+  const uint32_t cycles_per_us = clock::GetGptClockHz() / 1'000'000;
+  timer()->TAILR.TAILR = cycles_per_us * period_us;
+}
+
+void PeriodicTimer::ClearInterrupt() noexcept {
   GptIclrRegDef reg;
   reg.raw = 0;
   reg.TATOCINT = 1;
-  timer_->ICLR.raw = reg.raw;
+  timer()->ICLR.raw = reg.raw;
 }
 
 };  // namespace timer

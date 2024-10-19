@@ -4,7 +4,7 @@
 // delete to be defined even though it will never be called.  We do not define the corresponding
 // operator new stubs so that any inadvertent memory allocation is still a compile time error.
 
-void operator delete(void * /*unused*/) { // NOLINT(misc-new-delete-overloads)
+void operator delete(void * /*unused*/) {  // NOLINT(misc-new-delete-overloads)
   CPUcpsid();
   while (true) {}
 }

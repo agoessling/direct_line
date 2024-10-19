@@ -37,3 +37,5 @@ Checks: >
   -clang-diagnostic-builtin-macro-redefined,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-pro-type-member-init,
+  -misc-use-anonymous-namespace,
+  -misc-include-cleaner,

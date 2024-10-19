@@ -14,25 +14,27 @@ enum class Id {
   kTimer3,
 };
 
-enum class Error {};
-
-class PeriodicTimer {
+class BaseTimer {
  public:
-  struct Config {
-    uint32_t period_us;
-    bool enable_interrupt;
-  };
+  void Start() noexcept;
+  void Stop() noexcept;
 
-  explicit PeriodicTimer(Id id, interrupt::Priority priority);
-  void SetPeriod(uint32_t period_us);
-  void Start();
-  void Stop();
-  void ClearInterrupt();
+ protected:
+  explicit BaseTimer(Id id) noexcept;
+  [[nodiscard]] volatile GptPeriphDef *timer() const noexcept { return timer_; }
+  [[nodiscard]] uint32_t interrupt() const noexcept { return interrupt_; }
+  void Reset() noexcept;
 
  private:
-  void Reset();
-
   volatile GptPeriphDef *timer_;
+  uint32_t interrupt_;
+};
+
+class PeriodicTimer : public BaseTimer {
+ public:
+  PeriodicTimer(Id id, interrupt::Priority priority) noexcept;
+  void SetPeriod(uint32_t period_us) noexcept;
+  void ClearInterrupt() noexcept;
 };
 
 }  // namespace timer
