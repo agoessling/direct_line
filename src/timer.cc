@@ -64,14 +64,6 @@ void BaseTimer::Reset() noexcept {
   timer_->ICLR.raw = 0xFFFFFFFF;
 }
 
-void BaseTimer::Start() noexcept {
-  timer_->CTL.TAEN = 1;
-}
-
-void BaseTimer::Stop() noexcept {
-  timer_->CTL.TAEN = 0;
-}
-
 PeriodicTimer::PeriodicTimer(Id id, interrupt::Priority priority) noexcept : BaseTimer(id) {
   timer()->TAMR.TAILD = 1;  // Load timeout value at next timeout instead of immediately.
   timer()->TAMR.TAMR = 0x2;  // Periodic mode.
@@ -85,14 +77,7 @@ void PeriodicTimer::SetPeriod(uint32_t period_us) noexcept {
   timer()->TAILR.TAILR = cycles_per_us() * period_us;
 }
 
-void PeriodicTimer::ClearInterrupt() noexcept {
-  GptIclrRegDef reg;
-  reg.raw = 0;
-  reg.TATOCINT = 1;
-  timer()->ICLR.raw = reg.raw;
-}
-
-RunningTimer::RunningTimer(Id id) noexcept
+ClockTimer::ClockTimer(Id id) noexcept
     : BaseTimer(id) {
   timer()->TAMR.TAMR = 0x2;  // Periodic mode.
   timer()->TAMR.TACDIR = 0x1; // Count up.
@@ -104,7 +89,7 @@ RunningTimer::RunningTimer(Id id) noexcept
   timer()->TAILR.TAILR = load_value;
 }
 
-int64_t RunningTimer::NowUs() noexcept {
+int64_t ClockTimer::NowUs() noexcept {
   int64_t running_timer_us = 0;
   uint32_t current_val = 0;
   interrupt::CriticalSection([&]() noexcept {
@@ -116,6 +101,13 @@ int64_t RunningTimer::NowUs() noexcept {
     running_timer_us = running_timer_us_;
   });
   return running_timer_us + current_val / cycles_per_us();
+}
+
+WrappingTimer::WrappingTimer(Id id) noexcept
+    : BaseTimer(id) {
+  timer()->TAMR.TAMR = 0x2;  // Periodic mode.
+  timer()->TAMR.TACDIR = 0x1; // Count up.
+  timer()->TAILR.TAILR = 0xFFFFFFFF;
 }
 
 };  // namespace timer

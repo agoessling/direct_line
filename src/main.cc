@@ -13,7 +13,7 @@
 using board::GpioPin;
 
 static timer::PeriodicTimer g_timer(timer::Id::kTimer0, interrupt::Priority::kLevel0);
-static timer::RunningTimer g_clock(timer::Id::kTimer1);
+static timer::ClockTimer g_clock(timer::Id::kTimer1);
 
 static void LedTaskFunc(void * /*params*/) {
   uart::Uart uart(uart::Id::kUart0);
