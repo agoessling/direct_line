@@ -40,6 +40,14 @@ cc_library(
 )
 
 cc_library(
+    name = "assert",
+    hdrs = ["assert.hh"],
+    deps = [
+        "@ti_simplelink//:driverlib",
+    ],
+)
+
+cc_library(
     name = "clock",
     hdrs = ["clock.hh"],
     deps = [
@@ -65,9 +73,17 @@ cc_library(
 )
 
 cc_library(
+    name = "concepts",
+    hdrs = [
+        "concepts.hh",
+    ],
+)
+
+cc_library(
     name = "interrupt",
     hdrs = ["interrupt.hh"],
     deps = [
+        ":concepts",
         "@ti_simplelink//:driverlib",
     ],
 )
@@ -83,6 +99,7 @@ cc_library(
     deps = [
         ":cc1354p10_reg_def",
         ":clock",
+        ":assert",
         ":interrupt",
     ],
 )

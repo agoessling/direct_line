@@ -12,6 +12,9 @@
 
 using board::GpioPin;
 
+static timer::PeriodicTimer g_timer(timer::Id::kTimer0, interrupt::Priority::kLevel0);
+static timer::RunningTimer g_clock(timer::Id::kTimer1);
+
 static void LedTaskFunc(void * /*params*/) {
   uart::Uart uart(uart::Id::kUart0);
   auto result = uart.Configure();
@@ -24,7 +27,7 @@ static void LedTaskFunc(void * /*params*/) {
     vTaskDelay(kDelayMs);
 
     emio::static_buffer<32> buffer;
-    auto result = emio::format_to(buffer, "Task Delay: {:d} [ms]\r\n", kDelayMs);
+    auto result = emio::format_to(buffer, "Task Delay: {:d} [us]\r\n", g_clock.NowUs());
     if (!result) {
       continue;
     }
@@ -33,8 +36,6 @@ static void LedTaskFunc(void * /*params*/) {
     board::GpioToggle(GpioPin::kRedLed);
   }
 }
-
-static timer::PeriodicTimer g_timer(timer::Id::kTimer0, interrupt::Priority::kLevel0);
 
 extern "C" {
 void Timer0AHandler() {
@@ -54,6 +55,7 @@ int main() {
 
   g_timer.SetPeriod(500'000);
   g_timer.Start();
+  g_clock.Start();
 
   // Reminder: The main stack is reset in this function so local stack variables cease to exist.
   // This is why the task variables above must be declared "static".

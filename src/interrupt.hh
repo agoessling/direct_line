@@ -1,6 +1,10 @@
 #pragma once
 
+#include <utility>
+
 #include <ti/devices/cc13x4_cc26x4/driverlib/interrupt.h>
+
+#include "src/concepts.hh"
 
 namespace interrupt {
 
@@ -35,6 +39,38 @@ static inline uint8_t DriverLibPriorityLevel(Priority priority) {
       return INT_PRI_LEVEL7;
   }
   return INT_PRI_LEVEL7;
+}
+
+// Scope guard which enters a critical section on construction and exits on destruction.  When
+// possible prefer use of the CriticalSection() function below.
+class CriticalSectionGuard {
+ public:
+  CriticalSectionGuard() noexcept {
+    asm("mrs %0, PRIMASK\n"
+        "cpsid i"
+        : "=r"(primask_)
+        :
+        : "memory");
+  }
+
+  ~CriticalSectionGuard() noexcept {
+    asm volatile("msr PRIMASK, %0" : : "r"(primask_) : "memory");
+  }
+
+  // Not copyable or moveable.
+  CriticalSectionGuard(const CriticalSectionGuard&) = delete;
+  CriticalSectionGuard(CriticalSectionGuard&&) = delete;
+  CriticalSectionGuard& operator=(const CriticalSectionGuard&) = delete;
+  CriticalSectionGuard& operator=(CriticalSectionGuard&&) = delete;
+
+ private:
+  uint32_t primask_;
+};
+
+template <NoThrowCallable F>
+decltype(auto) CriticalSection(F&& func) noexcept {
+  CriticalSectionGuard guard;
+  return std::forward<F>(func)();
 }
 
 }  // namespace interrupt
