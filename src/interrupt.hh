@@ -53,9 +53,7 @@ class CriticalSectionGuard {
         : "memory");
   }
 
-  ~CriticalSectionGuard() noexcept {
-    asm volatile("msr PRIMASK, %0" : : "r"(primask_) : "memory");
-  }
+  ~CriticalSectionGuard() noexcept { asm volatile("msr PRIMASK, %0" : : "r"(primask_) : "memory"); }
 
   // Not copyable or moveable.
   CriticalSectionGuard(const CriticalSectionGuard&) = delete;

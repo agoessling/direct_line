@@ -77,10 +77,9 @@ void PeriodicTimer::SetPeriod(uint32_t period_us) noexcept {
   timer()->TAILR.TAILR = cycles_per_us() * period_us;
 }
 
-ClockTimer::ClockTimer(Id id) noexcept
-    : BaseTimer(id) {
+ClockTimer::ClockTimer(Id id) noexcept : BaseTimer(id) {
   timer()->TAMR.TAMR = 0x2;  // Periodic mode.
-  timer()->TAMR.TACDIR = 0x1; // Count up.
+  timer()->TAMR.TACDIR = 0x1;  // Count up.
 
   // Use biggest period which is a multiple of cycles_per_us.
   const uint32_t load_value = 0xFFFFFFFF - (0xFFFFFFFF % cycles_per_us());
@@ -103,10 +102,9 @@ int64_t ClockTimer::NowUs() noexcept {
   return running_timer_us + current_val / cycles_per_us();
 }
 
-WrappingTimer::WrappingTimer(Id id) noexcept
-    : BaseTimer(id) {
+WrappingTimer::WrappingTimer(Id id) noexcept : BaseTimer(id) {
   timer()->TAMR.TAMR = 0x2;  // Periodic mode.
-  timer()->TAMR.TACDIR = 0x1; // Count up.
+  timer()->TAMR.TACDIR = 0x1;  // Count up.
   timer()->TAILR.TAILR = 0xFFFFFFFF;
 }
 

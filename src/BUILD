@@ -97,9 +97,9 @@ cc_library(
         "@platforms//os:none",
     ],
     deps = [
+        ":assert",
         ":cc1354p10_reg_def",
         ":clock",
-        ":assert",
         ":interrupt",
     ],
 )
