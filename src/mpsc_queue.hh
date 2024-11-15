@@ -25,10 +25,10 @@ class MpscQueue {
   template <typename U>
   bool enqueue(U&& data) noexcept;
 
-  // Dequeue data from the queue.  If data is available it is returned and removed from the queue,
-  // otherwise returns std::nullopt.  This method is not thread safe and must only be called from a
-  // single context.
-  std::optional<T> dequeue() noexcept;
+  // Dequeue data from the queue.  If data is available a pointer is returned.  If the queue is
+  // empty returns nullptr.  The pointer is valid until the next call to dequeue().  This method is
+  // not thread safe and must only be called from a single context.
+  T* dequeue() noexcept;
 
  private:
   struct Node;
@@ -73,14 +73,14 @@ inline bool MpscQueue<T, N>::enqueue(U&& data) noexcept {
 }
 
 template <typename T, size_t N>
-inline std::optional<T> MpscQueue<T, N>::dequeue() noexcept {
+inline T* MpscQueue<T, N>::dequeue() noexcept {
   Node *const new_head = head_->next.load(std::memory_order_acquire);
   if (!new_head) {
-    return std::nullopt;
+    return nullptr;
   }
   node_pool_.release_raw(head_);
   head_ = new_head;
-  return std::move(head_->data);
+  return &head_->data;
 }
 
 template <typename T, size_t N>

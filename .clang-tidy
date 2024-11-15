@@ -39,3 +39,5 @@ Checks: >
   -cppcoreguidelines-pro-type-member-init,
   -misc-use-anonymous-namespace,
   -misc-include-cleaner,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-avoid-do-while,

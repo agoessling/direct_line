@@ -26,6 +26,18 @@ cc_binary(
         ":stubs",
         ":timer",
         ":uart",
+        ":console_log",
+        "@emio",
+    ],
+)
+
+cc_library(
+    name = "console_log",
+    hdrs = ["console_log.hh"],
+    deps = [
+        ":storage",
+        ":mpsc_queue",
+        ":timer",
         "@emio",
     ],
 )
@@ -45,6 +57,11 @@ cc_library(
     deps = [
         "@ti_simplelink//:driverlib",
     ],
+)
+
+cc_library(
+    name = "storage",
+    hdrs = ["storage.hh"],
 )
 
 cc_library(
