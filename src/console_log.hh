@@ -32,13 +32,18 @@ class LogEntry {
  private:
   using FormatFunc = emio::result<void> (*)(const LogEntry&, emio::buffer&);
 
+  template <typename T, size_t... Is>
+  [[nodiscard]] static emio::result<void> FormatImplWithArgs(
+      emio::buffer& buffer, std::string_view format_str, const T& args,
+      std::index_sequence<Is...> /*indices*/) noexcept {
+    return emio::format_to(buffer, emio::runtime(format_str), std::get<Is>(args)...);
+  }
+
   template <typename... Ts>
   [[nodiscard]] static emio::result<void> FormatImpl(const LogEntry& entry,
                                                      emio::buffer& buffer) noexcept {
-    const auto args = entry.ref_holder_.template Retrieve<Ts...>();
-    return std::apply(
-        [&](const auto&...args) { return emio::format_to(buffer, entry.format_str_, args...); },
-        args);
+    const auto& args = entry.ref_holder_.template Retrieve<Ts...>();
+    return FormatImplWithArgs(buffer, entry.format_str_, args, std::index_sequence_for<Ts...>{});
   }
 
   storage::ReferenceHolder<64> ref_holder_;

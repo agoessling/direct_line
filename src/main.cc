@@ -13,6 +13,8 @@
 
 using board::GpioPin;
 
+std::terminate_handler __terminate_handler = nullptr;
+
 static timer::PeriodicTimer g_timer(timer::Id::kTimer0, interrupt::Priority::kLevel0);
 static timer::WrappingTimer g_clock(timer::Id::kTimer1);
 static console_log::ConsoleLogger g_logger(g_clock);

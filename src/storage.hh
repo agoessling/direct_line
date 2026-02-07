@@ -40,6 +40,8 @@ class ReferenceHolder {
     static_assert(L::kTotalSize <= N, "Buffer too small for provided types.");
     static_assert(L::kTotalAlignment <= alignof(std::max_align_t),
                   "Buffer alignment is insufficient.");
+    static_assert((std::is_nothrow_constructible_v<std::decay_t<Ts>, Ts&&> && ...),
+                  "All provided types must be nothrow constructible.");
     static_assert((std::is_trivially_destructible_v<std::decay_t<Ts>> && ...),
                   "All provided types must be trivially destructible.");
 
