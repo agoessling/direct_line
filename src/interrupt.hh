@@ -46,7 +46,8 @@ static inline uint8_t DriverLibPriorityLevel(Priority priority) {
 class CriticalSectionGuard {
  public:
   CriticalSectionGuard() noexcept {
-    asm("mrs %0, PRIMASK\n"
+    asm volatile(
+        "mrs %0, PRIMASK\n"
         "cpsid i"
         : "=r"(primask_)
         :

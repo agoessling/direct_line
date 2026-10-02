@@ -30,6 +30,33 @@ cc_binary(
     ],
 )
 
+cc_test(
+    name = "mpsc_queue_test",
+    size = "small",
+    srcs = ["mpsc_queue_test.cc"],
+    target_compatible_with = select({
+        "@platforms//os:none": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [":mpsc_queue"],
+)
+
+# Instantiate the real ARM allocator paths, including debug counters and nonmovable payloads.
+# Runtime lifecycle tests above use a host-only allocator; they do not execute ARM exclusives.
+cc_library(
+    name = "memory_pool_compile_test",
+    testonly = True,
+    srcs = ["memory_pool_compile_test.cc"],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+    deps = [
+        ":memory_pool",
+        ":mpsc_queue",
+    ],
+)
+
 cc_library(
     name = "freertos_support",
     srcs = ["freertos_support.c"],

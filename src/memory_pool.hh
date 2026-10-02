@@ -1,17 +1,23 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <new>
 #include <ranges>
+#include <type_traits>
 #include <utility>
 
-// Thread-safe lock-free memory pool for item type T of size N.  The memory pool must outlive all of
-// its allocated items.  On destruction all outstanding item pointers are invalidated, and no item
-// destructors are called.
+// ARMv8-M single-core lock-free memory pool for item type T of size N.
+// Allocation/release may retry after preemption; per-call latency is not bounded. This relies on
+// exception entry/return and task context switches clearing the local exclusive monitor.
+// The C++ raw-storage/exclusive-access implementation is target-specific.
+// The memory pool must outlive all of its allocated items. On destruction all outstanding item
+// pointers are invalidated, and no item destructors are called.
 template <typename T, size_t N, bool Debug = false>
 class MemoryPool {
  private:
@@ -58,7 +64,7 @@ class MemoryPool {
   T *allocate_raw() noexcept;
 
   // Releases memory back to the memory pool allocated with allocate_raw.  Do not use with memory
-  // allocated with allocate() or create().
+  // allocated with allocate() or create(). The caller must destroy any constructed T first.
   void release_raw(T *ptr) noexcept;
 
   // Get internal debug counters.
@@ -69,7 +75,7 @@ class MemoryPool {
 
   std::array<Block, N> blocks_;  // Storage for memory pool.
   Block *head_;  // Pointer to the next block to be allocated.
-  DebugCounters counters_;
+  DebugCounters counters_{};
 };
 
 // A block of raw memory which can either store a T or a pointer to the next block.
@@ -112,7 +118,7 @@ inline MemoryPool<T, N, Debug>::MemoryPool() noexcept {
   // Initialize linked list.
   Block *next = nullptr;
   for (Block& block : std::views::reverse(blocks_)) {
-    *block.next() = next;
+    std::construct_at(block.next(), next);
     next = &block;
   }
   head_ = next;
@@ -156,13 +162,14 @@ template <typename T, size_t N, bool Debug>
 inline T *MemoryPool<T, N, Debug>::allocate_raw() noexcept {
   while (true) {
     // Load acquire exclusive head_ from memory to old_head a register.
-    // This does two things: First synchronizes any writes prior to this load (acquire).  Second,
-    // initiates the exclusive access state machine. "memory" implements a read/write compiler
+    // This acquires writes published by a prior release of head_ and initiates the exclusive
+    // access state machine. "memory" implements a read/write compiler
     // memory barrier.
     Block *old_head = nullptr;
-    asm("ldaex %0, %1" : "=r"(old_head) : "Q"(head_) : "memory");
+    asm volatile("ldaex %0, %1" : "=r"(old_head) : "Q"(head_) : "memory");
 
     if (old_head == nullptr) [[unlikely]] {
+      asm volatile("clrex" : : : "memory");
       if constexpr (Debug) {
         counters_.out_of_memory_allocations++;
       }
@@ -172,12 +179,11 @@ inline T *MemoryPool<T, N, Debug>::allocate_raw() noexcept {
     Block *const new_head = *old_head->next();
 
     // Store release exclusive new_head (a register) to memory of head_.  This will only succeed
-    // if no exclusive stores have occured since the load exclusive.  This protects against
-    // preemption in between the load and store, as well as instruction reordering.  Because the
-    // store will fail for any modification of head_ not just when the value differs, this also
-    // solves the ABA problem. "memory" implements a read/write compiler memory barrier.
+    // if the exclusive monitor remains valid. Preemption clears the monitor, so a retry is
+    // required even if another context removes and restores the same head (the ABA case). "memory"
+    // implements a read/write compiler memory barrier.
     uint32_t failed = 1;
-    asm("stlex %0, %1, %2" : "=&r"(failed) : "r"(new_head), "Q"(head_) : "memory");
+    asm volatile("stlex %0, %2, %1" : "=&r"(failed), "=Q"(head_) : "r"(new_head) : "memory");
 
     if (failed == 0) [[likely]] {
       if constexpr (Debug) {
@@ -199,21 +205,21 @@ inline void MemoryPool<T, N, Debug>::release_raw(T *ptr) noexcept {
 
   while (true) {
     // Load acquire exclusive head_ from memory to old_head a register.
-    // This does two things: First synchronizes any writes prior to this load (acquire).  Second
-    // initiates the exclusive access state machine. "memory" implements a read/write compiler
+    // This acquires writes published by a prior release of head_ and initiates the exclusive
+    // access state machine. "memory" implements a read/write compiler
     // memory barrier.
     Block *old_head = nullptr;
-    asm("ldaex %0, %1" : "=r"(old_head) : "Q"(head_) : "memory");
+    asm volatile("ldaex %0, %1" : "=r"(old_head) : "Q"(head_) : "memory");
 
-    *block->next() = old_head;
+    // The caller has ended the payload lifetime; start a free-list link in its storage.
+    std::construct_at(block->next(), old_head);
 
     // Store release exclusive block (a register) to memory of head_.  This will only succeed
-    // if no exclusive stores have occured since the load exclusive.  This protects against
-    // preemption in between the load and store, as well as instruction reordering.  Because the
-    // store will fail for any modification of head_ not just when the value differs, this also
-    // solves the ABA problem. "memory" implements a read/write compiler memory barrier.
+    // if the exclusive monitor remains valid. Preemption clears the monitor, so a retry is
+    // required even if another context removes and restores the same head (the ABA case). "memory"
+    // implements a read/write compiler memory barrier.
     uint32_t failed = 1;
-    asm("stlex %0, %1, %2" : "=&r"(failed) : "r"(block), "Q"(head_) : "memory");
+    asm volatile("stlex %0, %2, %1" : "=&r"(failed), "=Q"(head_) : "r"(block) : "memory");
 
     if (failed == 0) [[likely]] {
       if constexpr (Debug) {
