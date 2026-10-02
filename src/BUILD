@@ -30,6 +30,40 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "log_entry",
+    hdrs = ["log_entry.hh"],
+    deps = [
+        ":storage",
+        "@emio",
+    ],
+)
+
+cc_test(
+    name = "storage_test",
+    size = "small",
+    srcs = ["storage_test.cc"],
+    target_compatible_with = select({
+        "@platforms//os:none": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [":storage"],
+)
+
+cc_test(
+    name = "log_entry_test",
+    size = "small",
+    srcs = ["log_entry_test.cc"],
+    target_compatible_with = select({
+        "@platforms//os:none": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":log_entry",
+        "@emio",
+    ],
+)
+
 cc_test(
     name = "mpsc_queue_test",
     size = "small",
@@ -72,6 +106,11 @@ cc_library(
     deps = [
         "@ti_simplelink//:driverlib",
     ],
+)
+
+cc_library(
+    name = "storage",
+    hdrs = ["storage.hh"],
 )
 
 cc_library(
