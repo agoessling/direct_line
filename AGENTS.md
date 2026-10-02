@@ -102,6 +102,9 @@ The normal path should be `application -> concrete driver -> registers`.
   costs are low. Do not add trait layers or forwarding wrappers speculatively.
 - The board module describes wiring and assembles resources; it should not
   forward every peripheral operation. Shared clock/interrupt support stays narrow.
+- Driver constructors enable their own power domains and clock gates through PRCM. Board
+  initialization sets the shared GPT divider once before constructing drivers, then releases
+  global I/O retention and unmasks interrupts after all pins and handler state are configured.
 - GPIO configuration is fixed during board initialization, which also releases global I/O retention
   after configuring the pins. Output handles allow shared `&self` set/toggle operations through
   hardware aliases. Keep construction restricted; callers coordinate sequences on the same pin.
@@ -200,10 +203,21 @@ address, size, and loadable placement, not a snapshot of configuration words.
 The Rust/Bazel foundation and standalone LED image are implemented. Bazel 9.2.0
 fetches the pinned Rust 1.90.0 and Python 3.12 toolchains. The image
 uses the upstream Rust register generator, generated CCFG, TI factory trim, independent
-reset/vector/linker support, GPIO, and timer-driven blinking after an explicit HF crystal switch.
+reset/vector/linker support, GPIO, polling UART0, and timer-driven blinking after an explicit HF
+crystal switch. Board initialization routes UART0 RX/TX to DIO12/13 before releasing I/O retention.
+The bring-up image switches to the HF crystal before serial output, emits `RESULT PASS bringup`
+after its checks, then echoes received bytes. The UART constructor enables power and clocks through
+PRCM and owns pin routing, format, and FIFO access. Baud arithmetic stays in `uart.rs` with
+compile-time checks.
+UART0–UART3 are selectable during initialization, with configurable baud and fixed 8N1 framing.
+The driver uses 32-bit divisor arithmetic and rejects unsupported rates before changing hardware.
+UART0 needs SERIAL power; UART1–UART3 need PERIPH. The driver selects the domain internally and
+delegates register writes and polling to PRCM. GPIO and UART share `ioc.rs` for checked pin register
+lookup and IOC encodings; IOC also owns the global retention release called after board configuration.
 GPT1 provides a free-running counter; GPT0 provides periodic and one-shot timeout interrupts.
 This assignment lives in board initialization; either driver can use GPT0–GPT3 through private
-construction. Shared PRCM clock setup precedes handle construction, and each GPT A vector has its
+construction. The shared GPT divider is set once before handle construction; each constructor powers
+PERIPH and enables only its own clock gate. Each GPT A vector has its
 own acknowledgement count. The complete peripheral IRQ map lives in `firmware/interrupts.rs`.
 The bring-up image checks repeated interrupts, stopping, invalid intervals, and one-shot behavior.
 These timer changes have not been rerun on hardware after replaying the commit during the rebase.
@@ -213,7 +227,8 @@ The linker exposes the full 1 MiB of flash; reset establishes all-secure CPU
 attribution. A bring-up image verified execution and a literal read in the final
 16 bytes on both boards. That image was removed after verification; its source
 remains in Git history and results in `firmware/STARTUP.md`.
-UART, board runners, event logging, and RF remain subsequent milestones.
+Board runners, event logging, and RF remain subsequent milestones. Fresh UART hardware execution
+after this replay remains pending; compilation is not serial or electrical validation.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
 board tests passed with TI setup on 2026-10-03; physical power-on behavior for
 this SDK integration must still be checked on the boards. `BOOT_DIAGNOSTIC` reports
@@ -242,6 +257,9 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
   as concurrent timers, checking instance isolation, stopping, invalid requests, and one-shots.
   Compile-time assertions check conversion boundaries using the constants in `clock.rs` and `timer.rs`.
   All four images build and lint; hardware execution remains pending.
+- `//firmware:uart_test_uart0` through `uart_test_uart3` check each UART's configuration and internal
+  loopback at different baud rates, including rejection of invalid rates before hardware writes.
+  All four images build and lint; hardware execution and external baud accuracy remain unverified.
 - TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
   are replayed, account for those defaults and enable RTC radio synchronization
   explicitly; Rust startup leaves it disabled.
@@ -261,8 +279,8 @@ sentences. Do not add coauthor or coding-agent attribution.
   capture panic/fault diagnostics, and return a failing exit status for failures or timeouts.
   Use a consistent result protocol across test images and support explicit board selection and
   sequential execution. Hardware runs must be opt-in and uncached; keep raw reports in `.results/`.
-  Migrate both clock-test variants, the GPIO test, bring-up timer checks, and the four GPT assignment
-  tests; verify fresh execution on both boards.
+  Migrate both clock-test variants, the GPIO test, bring-up timer checks, the four GPT assignment
+  tests, and the four UART instance tests; verify fresh execution on both boards.
   Track physical power-on checks separately from debugger-reset tests.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.

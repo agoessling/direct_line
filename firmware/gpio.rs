@@ -1,27 +1,28 @@
 //! Fixed push-pull GPIO outputs, configured during board initialization.
+use crate::ioc;
+use crate::prcm;
 use cc1354p10_registers as r;
 
 /// Configure DIO0–31 as a push-pull output, initially low.
 ///
 /// # Safety
-/// GPIO power and its run-mode clock must be enabled. Caller must own this pin and serialize IOC/GPIO
-/// configuration with interrupts masked. No existing handle or peripheral may use this pin.
+/// Caller must own this pin and serialize PRCM/IOC/GPIO configuration after chip trim with
+/// interrupts masked. No existing handle or peripheral may use this pin.
 /// Keep the pin configuration and GPIO power/clock available for the handle's lifetime.
+/// Release global I/O retention only after all board pins have been configured.
 pub(crate) unsafe fn configure_output(dio: usize) -> OutputPin {
-    assert!(dio < 32, "only GPIO bank 0 is supported");
+    let config = ioc::config(dio);
     let mask = 1 << dio;
-    const NO_PULL: u32 = 3;
-    const IOCFG_STRIDE: usize = 4;
-
-    // IOCFG registers share one layout and are spaced four bytes apart.
-    let config = r::ioc::iocfg0::Register::at(r::IOC.iocfg0.address() + dio * IOCFG_STRIDE);
-    // Zero selects GPIO, normal polarity and slew rate, and automatic 2 mA drive.
+    // Zero selects normal polarity and slew rate, and automatic 2 mA drive.
     // Input, edge detection, interrupts, wakeup, and hysteresis remain disabled.
     let mut value: r::ioc::iocfg0::Value = 0.into();
-    value.set_pull_ctl(NO_PULL);
+    value.set_port_id(ioc::GPIO);
+    value.set_pull_ctl(ioc::NO_PULL);
 
     // SAFETY: caller owns pin configuration; shared output-enable RMW is serialized at startup.
     unsafe {
+        prcm::power_periph();
+        prcm::enable_gpio_clock();
         r::GPIO.doutclr31_0.write(mask.into()); // Load the initial level before enabling output.
         config.write(value);
         r::GPIO

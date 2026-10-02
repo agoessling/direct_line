@@ -6,6 +6,7 @@ mod ddi;
 mod device;
 mod gpio;
 mod interrupts;
+mod ioc;
 mod mmio;
 mod poll;
 mod prcm;
@@ -13,8 +14,10 @@ mod rtc;
 mod setup;
 mod startup;
 mod timer;
+mod uart;
 
 pub use clock::Clocks;
 pub use device::Board;
 pub use gpio::OutputPin;
 pub use timer::{Counter, GPT_CLOCK_HZ, Timer, TimerError, ticks_from_us};
+pub use uart::{BaudError, RxError, Timeout, Uart, WouldBlock};

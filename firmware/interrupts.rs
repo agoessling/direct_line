@@ -6,6 +6,17 @@
 #![allow(dead_code)] // Keep the complete hardware map as drivers are added.
 
 use cc1354p10_registers as r;
+use core::arch::asm;
+
+/// Unmask CPU interrupts after peripheral and vector initialization.
+///
+/// # Safety
+/// All enabled interrupt sources must have valid handlers and initialized handler state.
+#[inline]
+pub(crate) unsafe fn enable() {
+    // SAFETY: caller has finished initializing everything reachable from an enabled ISR.
+    unsafe { asm!("cpsie i", options(nostack, preserves_flags)) };
+}
 
 pub(crate) const AON_GPIO_EDGE: usize = 0;
 pub(crate) const I2C_IRQ: usize = 1;

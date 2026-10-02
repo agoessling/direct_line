@@ -1,5 +1,6 @@
 //! Free-running counters and periodic/one-shot timers on GPT0–GPT3.
 use crate::interrupts;
+use crate::prcm;
 use cc1354p10_registers as r;
 use core::arch::asm;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -43,8 +44,16 @@ impl Instance {
         }
     }
 
-    pub(crate) const fn clock_mask(self) -> u32 {
+    const fn clock_mask(self) -> u32 {
         1 << self as u32
+    }
+
+    /// Safety: caller owns PRCM after trim with interrupts masked and the shared divider configured.
+    unsafe fn enable_clock(self) {
+        unsafe {
+            prcm::power_periph();
+            prcm::enable_timer_clocks(self.clock_mask());
+        }
     }
 }
 
@@ -56,12 +65,14 @@ impl Counter {
     /// Start this GPT as a free-running 32-bit up-counter.
     ///
     /// # Safety
-    /// Caller must exclusively own the GPT with its clock enabled and CPU interrupts masked.
+    /// Caller must exclusively own the GPT and PRCM configuration with CPU interrupts masked,
+    /// after chip trim and initialization of the shared GPT divider.
     /// Call once per reset; retain PERIPH power and the undivided 48 MHz timer clock.
     pub(crate) unsafe fn initialize(instance: Instance) -> Self {
         let registers = instance.registers();
-        // SAFETY: caller owns the powered timer during board initialization.
+        // SAFETY: caller owns the timer and PRCM during board initialization.
         unsafe {
+            instance.enable_clock();
             // Disable both halves before changing configuration (TRM SWCU194, §17.4.1).
             registers.ctl.write(0.into());
             registers.cfg.write(0.into()); // Join A/B into one 32-bit timer (§17.5.1).
@@ -114,10 +125,13 @@ impl Timer {
     /// Leave this GPT stopped, with its interrupt disabled and priority set to 2 of 8.
     ///
     /// # Safety
-    /// Caller must exclusively own the GPT and its NVIC configuration with its clock enabled
-    /// and CPU interrupts masked. Call once per reset; retain PERIPH power and the undivided
-    /// 48 MHz timer clock. The matching Timer A handler must be installed in the vector table.
+    /// Caller must exclusively own the GPT, its NVIC configuration, and PRCM with CPU interrupts
+    /// masked, after chip trim and shared GPT divider initialization. Call once per reset; retain
+    /// PERIPH power and the undivided 48 MHz timer clock. The matching Timer A handler must be
+    /// installed in the vector table.
     pub(crate) unsafe fn initialize(instance: Instance) -> Self {
+        // SAFETY: caller owns PRCM and has initialized the shared divider before any GPT starts.
+        unsafe { instance.enable_clock() };
         let irq = instance.irq();
         let mut timer = Self {
             registers: instance.registers(),

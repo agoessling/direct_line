@@ -11,6 +11,7 @@ _DEVICE_SOURCES = [
     "device.rs",
     "gpio.rs",
     "interrupts.rs",
+    "ioc.rs",
     "lib.rs",
     "mmio.rs",
     "poll.rs",
@@ -19,6 +20,7 @@ _DEVICE_SOURCES = [
     "setup.rs",
     "startup.rs",
     "timer.rs",
+    "uart.rs",
 ]
 
 rust_register_definition(
@@ -152,6 +154,28 @@ rust_binary(
         srcs = _DEVICE_SOURCES + ["timer_test.rs"],
         crate_features = ["counter_gpt{}".format(index)],
         crate_root = "timer_test.rs",
+        link_deps = [
+            ":ti_rom",
+            "//firmware/config:ccfg",
+            "@ti_sdk//:setup",
+        ],
+        linker_script = "memory.ld",
+        target_compatible_with = [
+            "@platforms//cpu:armv8-m",
+            "@platforms//os:none",
+        ],
+        deps = [":registers"],
+    )
+    for index in range(4)
+]
+
+# Exercise each UART on the debug-probe pins at a different baud using internal loopback.
+[
+    rust_binary(
+        name = "uart_test_uart{}".format(index),
+        srcs = _DEVICE_SOURCES + ["uart_test.rs"],
+        crate_features = ["uart{}".format(index)],
+        crate_root = "uart_test.rs",
         link_deps = [
             ":ti_rom",
             "//firmware/config:ccfg",

@@ -13,6 +13,7 @@ mod setup;
 mod startup;
 mod timer;
 
+use cc1354p10_registers as r;
 use core::arch::asm;
 use core::sync::atomic::{AtomicU32, Ordering};
 use poll::wait_for;
@@ -52,16 +53,24 @@ pub extern "C" fn main() -> ! {
     // SAFETY: this image replaces Board initialization; startup still masks CPU interrupts.
     // Each GPT is constructed once, with one counter and the other three as timers.
     let (counter, mut timers) = unsafe {
-        prcm::power_periph();
-        prcm::enable_timer_clocks(
-            INSTANCES
-                .iter()
-                .fold(0, |mask, gpt| mask | gpt.clock_mask()),
-        );
+        prcm::initialize_timer_clock();
+        let mut gates = r::PRCM.gptclkgr.read().clk_en();
         let counter = Counter::initialize(INSTANCES[counter_index]);
+        gates |= 1 << counter_index;
+        assert_eq!(r::PRCM.gptclkgr.read().clk_en(), gates);
+        assert!(r::PRCM.pdstat0.read().periph_on());
         let timers: [Timer; 3] = core::array::from_fn(|index| {
-            Timer::initialize(INSTANCES[(counter_index + index + 1) % 4])
+            let instance_index = (counter_index + index + 1) % 4;
+            let timer = Timer::initialize(INSTANCES[instance_index]);
+            // Adding a timer preserves earlier gates and the shared clock rate.
+            gates |= 1 << instance_index;
+            assert_eq!(r::PRCM.gptclkgr.read().clk_en(), gates);
+            assert_eq!(r::PRCM.gptclkdiv.read().ratio(), 0);
+            timer
         });
+        // The original counter must still advance after all three other GPTs are initialized.
+        let start = counter.now();
+        wait_for(1_000_000, || counter.elapsed_since(start) != 0);
         (counter, timers)
     };
     let mut clocks = clock::Clocks { _private: () };
@@ -69,7 +78,7 @@ pub extern "C" fn main() -> ! {
     wait_for(2_000_000, || clocks.hf_crystal_ready());
     wait_for(2_000_000, || clocks.try_switch_to_hf_crystal());
     // SAFETY: timer clocks, priorities, and vectors are initialized; no timeout is armed yet.
-    unsafe { asm!("cpsie i", options(nostack, preserves_flags)) };
+    unsafe { interrupts::enable() };
 
     // All three sources must service interrupts independently while the counter advances.
     for timer in &mut timers {

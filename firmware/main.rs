@@ -10,7 +10,7 @@ use poll::wait_for;
 static INITIALIZED_DATA: AtomicU32 = AtomicU32::new(0x1234_abcd);
 static ZEROED_DATA: AtomicU32 = AtomicU32::new(0);
 
-/// Observable progress for debugger checks before a serial driver exists.
+/// Observable progress for debugger checks.
 #[unsafe(no_mangle)]
 static BLINK_COUNT: AtomicU32 = AtomicU32::new(0);
 
@@ -21,22 +21,39 @@ static TIMER_TEST_STATUS: AtomicU32 = AtomicU32::new(0);
 #[unsafe(no_mangle)]
 pub extern "C" fn main() -> ! {
     let mut board = Board::take().expect("board already taken");
-    assert_eq!(INITIALIZED_DATA.load(Ordering::Relaxed), 0x1234_abcd);
-    assert_eq!(ZEROED_DATA.load(Ordering::Relaxed), 0);
-    INITIALIZED_DATA.store(0x5678_ef01, Ordering::Relaxed);
-    ZEROED_DATA.store(1, Ordering::Relaxed);
     board.clocks.request_hf_crystal();
     wait_for(2_000_000, || board.clocks.try_switch_to_hf_crystal());
+    let timeout = GPT_CLOCK_HZ; // One nominal second for serial enqueue and timer progress.
+    board
+        .uart
+        .write_timeout(b"DIRECT_LINE_RUST v1\r\n", &board.counter, timeout)
+        .unwrap();
+    if INITIALIZED_DATA.load(Ordering::Relaxed) != 0x1234_abcd
+        || ZEROED_DATA.load(Ordering::Relaxed) != 0
+    {
+        let _ = board.uart.write_timeout(
+            b"RESULT FAIL memory initialization\r\n",
+            &board.counter,
+            timeout,
+        );
+        panic!("memory initialization failed");
+    }
+    INITIALIZED_DATA.store(0x5678_ef01, Ordering::Relaxed);
+    ZEROED_DATA.store(1, Ordering::Relaxed);
 
     TIMER_TEST_STATUS.store(1, Ordering::Relaxed);
     board.timer.start_periodic_us(1_000).unwrap();
     let start = board.counter.now();
     // Require repeated IRQ service within one nominal second of counter progress.
     wait_for(48_000_000, || {
-        assert!(
-            board.counter.elapsed_since(start) < GPT_CLOCK_HZ,
-            "timer interrupt timeout"
-        );
+        if board.counter.elapsed_since(start) >= timeout {
+            let _ = board.uart.write_timeout(
+                b"RESULT FAIL timer interrupt\r\n",
+                &board.counter,
+                timeout,
+            );
+            panic!("timer interrupt timeout");
+        }
         board.timer.interrupts() >= 20
     });
     board.timer.stop();
@@ -55,6 +72,10 @@ pub extern "C" fn main() -> ! {
     assert_eq!(board.timer.interrupts(), stopped.wrapping_add(1));
     board.timer.stop();
     TIMER_TEST_STATUS.store(2, Ordering::Relaxed);
+    board
+        .uart
+        .write_timeout(b"RESULT PASS bringup\r\n", &board.counter, timeout)
+        .unwrap();
 
     board.timer.start_periodic_us(500_000).unwrap();
     let mut previous = board.timer.interrupts();
@@ -66,6 +87,16 @@ pub extern "C" fn main() -> ! {
             board.green_led.toggle();
             BLINK_COUNT.fetch_add(1, Ordering::Relaxed);
         }
-        core::hint::spin_loop();
+        match board.uart.try_read() {
+            Ok(Some(byte)) => board
+                .uart
+                .write_timeout(&[byte], &board.counter, timeout)
+                .unwrap(),
+            Ok(None) => core::hint::spin_loop(),
+            Err(_) => board
+                .uart
+                .write_timeout(b"RX_ERROR\r\n", &board.counter, timeout)
+                .unwrap(),
+        }
     }
 }

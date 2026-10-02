@@ -226,10 +226,11 @@ These are static assembly observations; this change has not been rerun on hardwa
 
 ## GPIO bring-up
 
-`Board::take()` claims the board once, powers PERIPH, enables GPIO and GPT clocks,
-configures DIO6/7 as push-pull LED outputs, starts GPT1 with GPT0 stopped, releases IO retention,
-and unmasks CPU
-interrupts. No peripheral IRQ source is armed. Output operations use hardware
+`Board::take()` claims the board once and configures the shared GPT divider before constructing
+drivers. `Board::configure()` assigns DIO6/7 LEDs, DIO12/13 UART0, GPT1 as a counter and GPT0 as a
+stopped timer; each driver enables its own power domain and clock gate. After configuration,
+`take()` releases global I/O retention through IOC and unmasks CPU interrupts. No peripheral IRQ
+source is armed. Output operations use hardware
 set/clear/toggle aliases instead of software read-modify-write.
 
 `device.rs` owns LED pin assignments and releases global I/O retention after all board pin
@@ -245,9 +246,10 @@ each LED toggle is a mask load followed by one MMIO store, with the register add
 the loop. The GPIO test's set/clear paths each issue one MMIO store. Output operations add no function
 calls, output-register reads, or interrupt masking. Cycle counts have not been measured.
 
-The application verifies initialized and zeroed RAM, requests and switches to the 48 MHz HF crystal,
-then checks the timers and toggles both LEDs on timer events. `BLINK_COUNT` increments after each
-pair of toggles and can be observed through a debugger. UART, logging, and RF remain later milestones.
+The application switches to the 48 MHz HF crystal before serial output, checks initialized and zeroed
+RAM and the timers, then echoes UART bytes and toggles both LEDs on timer events. `BLINK_COUNT`
+increments after each pair of toggles and can be observed through a debugger. Logging and RF remain
+later milestones.
 
 Embedded compilation is required before flashing; compilation alone does not establish genuine
 power-on behavior or electrical timing. Keep raw hardware results outside source control.
@@ -266,12 +268,64 @@ Flash and inspect it with the same debugger workflow as the clock tests below, r
 panics/faults use `BOOT_DIAGNOSTIC`. As of 2026-10-10, this image has not been run on hardware.
 Integrate it with the automated embedded-test runner after the rebase.
 
+## Polling UART
+
+The UART driver supports UART0–UART3 at a baud selected during initialization, with eight data bits,
+no parity, one stop bit, FIFOs enabled, and interrupts/DMA disabled. `Board::uart` selects UART0 at
+115200 baud on DIO12 RX and DIO13 TX. UART0 requires SERIAL power; UART1–UART3 use PERIPH. Board
+initialization selects the instance, pins, and baud; `Uart::initialize()` powers its domain and
+enables its clock through PRCM before configuring registers. The board releases I/O retention after
+configuring all pins. Pins, baud,
+and power remain fixed for each handle's lifetime. The bring-up application switches to the HF
+crystal before transmitting; no baud-accuracy measurement has been made.
+
+GPIO and UART share `ioc.rs` for checked IOCFG lookup and IOC signal/pull encodings. Obtaining a
+register accessor performs no hardware access; each driver retains responsibility for exclusive
+pin configuration. The supported pin range remains DIO0–31.
+
+`try_write()` enqueues a byte or returns `WouldBlock`. `try_read()` consumes one FIFO entry and
+returns its byte or receive error flags, or `Ok(None)` if empty. `write_timeout()` bounds the whole
+enqueue operation using the supplied counter, with a maximum timeout of `2^31 - 1` ticks. It can
+enqueue a prefix before timing out; success does not mean the final stop bit has left the pin.
+The counter must keep running, with polling intervals shorter than its full wrap period.
+
+Baud divisors use 32-bit arithmetic and the shared nominal HF frequency, rounding the combined
+integer/fractional divisor before splitting its fields. With the fixed 48 MHz clock and 16x
+oversampling, requests from 46 through 3,000,000 baud are supported, rounded to the nearest
+representable divisor. Out-of-range requests return `BaudError` before any pin or UART write.
+Assertions in `uart.rs` check representative rates, fractional carry, and both range boundaries.
+Configuration follows TRM SWCU194 §22.6: route pins, disable UART, write integer/fractional divisors,
+write line control to commit them, then enable RX/TX. No runtime baud or pin reassignment is exposed.
+
+Assembly inspection on 2026-10-11 found one hardware `udiv` for the runtime baud calculation in the
+UART1 test image, with no 64-bit division helper. The constant board baud folds away in `bringup`;
+the IOC lookup and byte FIFO operations inline. A UART handle stores one register-block reference
+(4 bytes on this target). Cycle counts have not been measured.
+
+The bring-up image emits `DIRECT_LINE_RUST v1` and `RESULT PASS bringup` after memory/timer checks,
+then echoes received bytes while blinking the LEDs. Receive errors emit `RX_ERROR`. Fresh serial
+and hardware tests of this replayed implementation remain pending; use the board runners once replayed.
+
+### UART instance tests
+
+Build `bazel build --config=m33 --config=lint //firmware:uart_test_uart{0,1,2,3}`. Each image selects
+one UART on DIO12/13, at 9600, 115200, 1,000,000, or 3,000,000 baud respectively. The checks cover
+clock gating, power selection, pin routing, fixed 8N1/FIFO settings, divisor values, invalid requests
+leaving configuration unchanged, zero-timeout behavior, and all 256 byte values through internal
+loopback. Each image owns initialization directly and requires no external loopback wire.
+
+`UART_TEST_RESULT == 0x50415353` indicates completion; faults/panics use `BOOT_DIAGNOSTIC`. The images
+build and lint, but have not been run on hardware. Internal loopback does not measure physical pin
+behavior or absolute baud accuracy; retain external serial tests in the later board-runner milestone.
+
 ## Timers and interrupt bring-up
 
 Board initialization assigns GPT1 to `Board::counter` and GPT0 to `Board::timer`. Either driver can
 use any of GPT0–GPT3; crate-private constructors require exclusive ownership, and handles cannot
-be copied or reassigned to another peripheral. The board enables selected clocks through PRCM
-before constructing the handles, retaining the shared undivided clock setting for their lifetime.
+be copied or reassigned to another peripheral. Each constructor powers PERIPH and enables its
+instance's clock through PRCM, preserving other clock gates. Board initialization sets the shared
+GPT divider once before any GPT starts; constructors never change it. The undivided setting remains
+fixed for all handles' lifetimes.
 
 `Board::counter` is a free-running 32-bit up-counter. `now()` reads its ticks;
 `elapsed_since()` subtracts modulo 2^32 and is valid for intervals shorter than one wrap.
