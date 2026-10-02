@@ -1,8 +1,9 @@
 *.swp
-
 bazel-*
-__pycache__
-
-# BEGIN ==================== lint_it_all ====================
+__pycache__/
+rust-project.json
+.editor/
+.tools/
+.rules_rust_analyzer/
+.results/
 compile_commands.json
-# END ==================== lint_it_all ====================

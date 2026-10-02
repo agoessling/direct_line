@@ -1,0 +1,26 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//tools/quality:checks.bzl", "python_checks")
+
+_SOURCES = ["refresh.py"]
+
+py_binary(
+    name = "refresh",
+    srcs = _SOURCES,
+    args = [
+        "--project",
+        "$(rootpath :project.json)",
+        "--rustc",
+        "$(rootpath @rust_host_tools//:rustc)",
+    ],
+    data = [
+        "project.json",
+        "@rust_host_tools//:rustc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["@rules_python//python/runfiles"],
+)
+
+python_checks(
+    name = "python",
+    srcs = _SOURCES,
+)

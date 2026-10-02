@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "python_exclude_paths": [
+    "bazel-*"
+  ],
+  "format_commands": {
+    "rust": [
+      "bazel",
+      "run",
+      "//tools/quality:rustfmt",
+      "--",
+      "--emit=stdout"
+    ],
+    "python": [
+      "bazel",
+      "run",
+      "//tools/quality:ruff",
+      "--",
+      "format",
+      "--stdin-filename={path}",
+      "-"
+    ],
+    "starlark": [
+      "bazel",
+      "run",
+      "//tools/quality:buildifier",
+      "--",
+      "-path={path}"
+    ],
+    "c": [
+      "bazel",
+      "run",
+      "//tools/quality:clang_format",
+      "--",
+      "--assume-filename={path}"
+    ]
+  }
+}

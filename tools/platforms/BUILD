@@ -1,7 +1,7 @@
 platform(
     name = "bare_metal_m33",
     constraint_values = [
-        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//cpu:armv8-m",
         "@platforms//os:none",
     ],
     visibility = ["//visibility:public"],

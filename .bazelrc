@@ -1,20 +1,6 @@
 build -c opt
-build --incompatible_enable_cc_toolchain_resolution
-build --copt="-Wall"
-build --copt="-Werror"
-build --copt="-fdiagnostics-color"
-build --copt="-fmax-errors=5"
-build --cxxopt="-std=c++23"
-
-build --host_copt=-Wall
-build --host_copt=-Werror
-build --host_copt=-fdiagnostics-color
-build --host_copt=-fmax-errors=5
-build --host_cxxopt=-std=c++23
-
 test --test_output=errors
-test --test_env=GTEST_COLOR=yes
-
 build:m33 --platforms=//tools/platforms:bare_metal_m33
-# This should be part of the toolchain, but there isn't an option.
-build:m33 --cxxopt="-fno-rtti"
+build --@rules_rust//rust/settings:rustfmt.toml=//:rustfmt.toml
+build:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect,@rules_rust//rust:defs.bzl%rust_clippy_aspect
+build:lint --output_groups=+rustfmt_checks,+clippy_checks

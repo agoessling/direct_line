@@ -23,9 +23,11 @@ generality. Verify performance rather than assuming abstractions are free.
 - Remove the existing C/C++ firmware, its targets, and obsolete dependencies when
   implementation begins. Do not maintain a parallel C++ implementation or port
   incrementally through C shims. Git history is the reference and fallback.
-- Preserve useful language-independent documentation, hardware results, probe
+- Preserve useful language-independent documentation, probe
   tooling, and udev rules. A host-side tool written in C is not a firmware shim;
   assess it independently rather than deleting it solely because of its language.
+  Keep raw test results outside version control; retain concise measurements and
+  reproducible tests where they explain a design decision.
 - Remove `lint_it_all` and replace its integration with explicit, pinned formatting
   and linting tools. The user considers that dependency a mistake. Preserve the
   useful checks, not the dependency or its architecture.
@@ -42,7 +44,9 @@ generality. Verify performance rather than assuming abstractions are free.
 The source project is <https://github.com/agoessling/reg_def>. Extend its existing
 TI XML parser and device model with Rust generation. The host generator can remain
 Python; a Rust firmware does not require rewriting every development tool.
-Consume it through a pinned Bzlmod dependency, not a sibling local repository.
+Develop generator changes and generic tests in `~/reg_def`, then consume a
+published commit through a pinned Bzlmod dependency. Do not maintain a downstream
+patch or generator fork. Device-specific integration tests belong here.
 
 Preserve convenient named bitfield access. Generate integer-backed register-value
 wrappers with field getters/setters and raw `from_bits()` / `bits()` access. Field
@@ -106,8 +110,10 @@ Editor integration is part of the first milestone, not follow-up polish:
   from the build rather than maintaining a divergent second project definition.
 - Provide a documented way to refresh generated-source/editor metadata.
 - Format on save must use the same pinned tools and configuration as command-line
-  checks. Provide a reproducible Neovim setup/example and verify it in an isolated
-  configuration, not just an undocumented developer environment.
+  checks. Export editor-neutral metadata here. Neovim configuration and editor tests belong
+  in `~/.config/nvim`; workstation installation belongs in `~/defaults`. Verify
+  navigation and save formatting there without bundling editors or language
+  servers into this repository.
 - CI checks formatting, linting, host tests, and embedded builds. Formatting checks
   must report differences without silently modifying the checkout.
 - Hardware tests require explicit boards and fresh execution; cached test success
@@ -152,30 +158,24 @@ Editor integration is part of the first milestone, not follow-up polish:
 
 ## Current state and references
 
-At creation of this document, the Rust rewrite has **not started**. The checkout
-still contains C/C++ firmware and `lint_it_all`. This handoff records the plan;
-it does not claim those removals or integrations have happened.
+The Rust/Bazel foundation is implemented. Bazel 9.2.0 fetches Rust 1.90.0,
+Python 3.12, and pinned formatting/lint tools. Host tests, Cortex-M33 library compilation, and a Rust/C FFI
+link check run through the same CI checks. Editor metadata is generated from
+Bazel; editor configuration belongs to the user's Neovim/defaults repositories.
+No Rust firmware is present yet. Standalone startup/GPIO, timers, UART, board
+testing, event logging, and RF remain subsequent milestones.
 
-- Last reviewed C++ baseline: commit `8186f5e`. Use `git show` or an isolated
-  temporary worktree for comparisons; do not retain old firmware in the new tree.
-- Existing builds: `bazel build --config=m33 //src/...`.
-- Existing host tests: `bazel test //src:storage_test //src:log_entry_test
-  //src:mpsc_queue_test` (one command). These targets are historical references
-  once the old firmware is removed, not requirements for the new layout.
-- [Primitive review](docs/lock_free_primitives.md): prior failures, contracts,
-  tradeoffs, and unresolved allocator lifetime concerns. Hardware stress success
-  did not prove all interleavings or resolve those concerns. Do not translate the
-  old algorithms blindly into Rust `unsafe` code.
-- [Hardware setup and tests](docs/hardware_tests.md) and
-  [recorded results](docs/hardware_results/2026-10-01/): both boards passed the
-  existing primitive workload and normal application smoke tests. RF has not been
-  brought up or benchmarked.
-- Confirmed CC1354P10 boards have XDS110 serials `LS4500Q0` and `LS4500IY`. Select
-  probes and UARTs by stable serial identity, not changing `/dev/ttyACM*` numbers.
-  The USB product label is misleading; the runner checks silicon identity.
-- Retain fresh-reset UART capture and flash verification to prevent stale output
-  from producing a false PASS. Existing debug tooling documents persistent udev
-  access and an optional host-side workaround for DSLite shutdown hangs.
+- Host tests: `bazel test //...`; complete checks: `tools/quality/check`.
+- Rust formatting/lint: `bazel build --config=lint //...`; aspects cover existing
+  Rust targets without per-library check targets.
+- Embedded build/lint: `bazel build --config=m33 --config=lint //foundation/...`.
+- Editor metadata: `bazel run //tools/metadata:refresh`.
+- Arm GNU 13.2.Rel1 provides the embedded C compiler/linker for the Rust FFI link check.
+  A pinned standalone clang-format 19 binary formats owned C sources; metadata refresh exports
+  compile_commands.json. Repository-wide Buildifier and C format checks need no per-package targets.
+- Previous C++ baseline: `8186f5e`; use Git history for reference.
+- Hardware runs must remain explicit and uncached. Raw results belong in ignored
+  `.results/` directories, not source control.
 
 When commits are requested, keep messages concise, with at most four body
 sentences. Do not add coauthor or coding-agent attribution.

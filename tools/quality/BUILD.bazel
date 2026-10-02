@@ -1,0 +1,55 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+exports_files([
+    "checks.bzl",
+    "c_format.sh",
+])
+
+# These launchers support explicit files and stdin. They do not discover files.
+sh_binary(
+    name = "ruff",
+    srcs = ["formatter.sh"],
+    args = [
+        "$(rootpath @ruff_prebuilt//:ruff)",
+        "$(rootpath //:.ruff.toml)",
+        "--config=",
+    ],
+    data = [
+        "//:.ruff.toml",
+        "@ruff_prebuilt//:ruff",
+    ],
+    env = {"RUFF_NO_CACHE": "true"},
+)
+
+sh_binary(
+    name = "rustfmt",
+    srcs = ["formatter.sh"],
+    args = [
+        "$(rootpath @rust_host_tools//:rustfmt)",
+        "$(rootpath //:rustfmt.toml)",
+        "--config-path=",
+    ],
+    data = [
+        "//:rustfmt.toml",
+        "@rust_host_tools//:rustfmt",
+    ],
+)
+
+alias(
+    name = "buildifier",
+    actual = "@buildifier_prebuilt//:buildifier",
+)
+
+sh_binary(
+    name = "clang_format",
+    srcs = ["formatter.sh"],
+    args = [
+        "$(rootpath @clang_format//file)",
+        "$(rootpath //:.clang-format)",
+        "--style=file:",
+    ],
+    data = [
+        "//:.clang-format",
+        "@clang_format//file",
+    ],
+)
