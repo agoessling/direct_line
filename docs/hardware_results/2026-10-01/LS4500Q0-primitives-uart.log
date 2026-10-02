@@ -1,0 +1,10 @@
+DIRECT_LINE_HW_TEST v1
+PASS pool exhaustion/reuse/lifetime
+PASS queue FIFO/capacity/lifetime
+PASS storage/deferred-format
+START MPSC tasks=2 ISR=1 records_each=10000 timer_us=100
+producer=0 accepted=10000 received=10000 full_retries=0
+producer=1 accepted=10000 received=10000 full_retries=509
+producer=2 accepted=10000 received=10000 full_retries=5608
+elapsed_ticks=1578 stack_free_words consumer=1236 p0=480 p1=480
+RESULT PASS 30000 ordered/checksummed records

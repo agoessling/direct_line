@@ -1,0 +1,8 @@
+Firmware SHA-256 (ARM GNU 13.2.Rel1, Bazel --config=m33):
+02f20c066e4ff8b48cea0fb7c7934172af76686a380c9e66dffbbcda8b29c73c  hardware_test
+2986a10d61bf8f2e364226313e73c39f101d110ccf5186c96800fafdc7cda3fc  main
+
+Both boards: CC1354P10, USER_ID=0x1287f000 ICEPICK_ID=0x1bb7802f
+Both probes: XDS110 firmware 3.0.0.43
+Main task stack snapshot on LS4500Q0: 512 words allocated, 308 untouched words.
+Observed peak usage: 204 words (816 bytes); workload-specific, not a worst-case bound.
