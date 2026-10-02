@@ -42,6 +42,34 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "hardware_test",
+    testonly = True,
+    srcs = ["hardware_test.cc"],
+    features = ["generate_linkmap"],
+    linkopts = ["-T $(execpath :cc13x4_cc26x4.ld)"],
+    target_compatible_with = [
+        "//tools/platforms/cpu:cortex_m33",
+        "@platforms//os:none",
+    ],
+    deps = [
+        ":board",
+        ":cc13x4_cc26x4.ld",
+        ":ccfg",
+        ":freertos_kernel",
+        ":freertos_support",
+        ":log_entry",
+        ":memory_pool",
+        ":mpsc_queue",
+        ":startup",
+        ":storage",
+        ":stubs",
+        ":timer",
+        ":uart",
+        "@emio",
+    ],
+)
+
 cc_library(
     name = "log_entry",
     hdrs = ["log_entry.hh"],
