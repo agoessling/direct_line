@@ -20,12 +20,24 @@ cc_binary(
         ":board",
         ":cc13x4_cc26x4.ld",
         ":ccfg",
+        ":console_log",
         ":freertos_kernel",
         ":freertos_support",
         ":startup",
         ":stubs",
         ":timer",
         ":uart",
+        "@emio",
+    ],
+)
+
+cc_library(
+    name = "console_log",
+    hdrs = ["console_log.hh"],
+    deps = [
+        ":log_entry",
+        ":mpsc_queue",
+        ":timer",
         "@emio",
     ],
 )
