@@ -21,9 +21,10 @@ use_repo(arm_toolchain, "arm_none_eabi")
 register_toolchains("//tools/toolchains:all")
 
 bazel_dep(name = "reg_def", version = "0.1.0")
-local_path_override(
+git_override(
     module_name = "reg_def",
-    path = "../reg_def",
+    commit = "14ec9c9029a6eb88d2e0a49514bb76e0b33fa6ce",
+    remote = "https://github.com/agoessling/reg_def.git",
 )
 
 http_archive(
