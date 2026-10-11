@@ -1,0 +1,10 @@
+// LP-EM-CC1354P10-1. Generate only CCFG: no TI board, drivers, or power manager.
+const ccfg = scripting.addModule('/ti/devices/CCFG');
+ccfg.srcClkLF = 'LF XOSC'; // Board's 32.768 kHz crystal supplies the LF/RTC clock.
+ccfg.srcClkHF = '48 MHz XOSC_HF'; // Board's HF crystal; Rust requests the switch.
+ccfg.enableDCDC = true; // Use the internal DC/DC converter for supply efficiency.
+ccfg.forceVddr = false; // Normal VDDR; revisit boost requirements for RF power.
+ccfg.xoscCapArray = false; // Keep factory HF crystal trim; no board-specific delta.
+ccfg.enableBootloader = false; // Flash through the debugger, not the ROM serial loader.
+ccfg.disableCache = false; // Use flash cache rather than reclaiming it as GPRAM.
+ccfg.disableRamParity = false; // Keep SRAM parity error detection enabled.

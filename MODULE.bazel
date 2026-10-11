@@ -72,3 +72,17 @@ http_file(
     sha256 = "2e3ea58345e20a028b8c35aff964f74df14e4cd17e2d524a8efc1ba9eced7da2",
     url = "https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-2da3e7b/clang-format-19_linux-amd64",
 )
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "ti_sdk",
+    build_file = "//third_party/ti:sdk.BUILD.bazel",
+    sha256 = "f35cb6818302e986af4dc39849ee2ab63684e1c66586d9e864fd11408ead10ed",
+    strip_prefix = "simplelink-lowpower-f2-sdk-lpf2-8.33.00.16",
+    url = "https://github.com/TexasInstruments/simplelink-lowpower-f2-sdk/archive/refs/tags/lpf2-8.33.00.16.tar.gz",
+)
+
+sysconfig_repository = use_repo_rule("//third_party/ti:repositories.bzl", "sysconfig_repository")
+
+sysconfig_repository(name = "ti_sysconfig")

@@ -1,0 +1,48 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([".metadata/product.json"])
+
+# SysConfig modules load each other dynamically. Keep their metadata/templates
+# available without declaring unrelated SDK libraries as build dependencies.
+filegroup(
+    name = "sysconfig_inputs",
+    srcs = glob([
+        ".metadata/**",
+        "source/**/.meta/**",
+    ]),
+)
+
+cc_library(
+    name = "headers",
+    hdrs = glob([
+        "source/ti/devices/cc13x4_cc26x4/**/*.h",
+    ]) + [
+        "source/ti/devices/DeviceFamily.h",
+        "source/ti/devices/cc13x4_cc26x4/startup_files/ccfg.c",
+    ],
+    defines = ["DeviceFamily_CC13X4"],
+    includes = ["source"],
+)
+
+# Compile upstream sources unchanged. Rust calls the single reset-time entry;
+# function/data sections let the linker discard unused helpers and alternatives.
+cc_library(
+    name = "setup",
+    srcs = ["source/ti/devices/cc13x4_cc26x4/driverlib/" + name + ".c" for name in [
+        "setup",
+        "setup_rom",
+        "aux_sysif",
+        "chipinfo",
+        "interrupt",
+        "ddi",
+        "osc",
+        "ioc",
+    ]],
+    target_compatible_with = [
+        "@platforms//cpu:armv8-m",
+        "@platforms//os:none",
+    ],
+    deps = [":headers"],
+)

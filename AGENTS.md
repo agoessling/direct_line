@@ -23,6 +23,11 @@ generality. Verify performance rather than assuming abstractions are free.
 - Remove the existing C/C++ firmware, its targets, and obsolete dependencies when
   implementation begins. Do not maintain a parallel C++ implementation or port
   incrementally through C shims. Git history is the reference and fallback.
+  **2026-10-03 exception:** use unmodified TI SDK early setup behind one Rust FFI
+  call and SysConfig-generated CCFG; do not translate vendor analog initialization.
+  Rust still owns reset/runtime, LF/RTC completion, and peripheral drivers.
+  **2026-10-10 exception:** a small C wrapper exposes TI's ROM HF safe-switch macro using
+  the SDK's function-table layout; Rust owns the surrounding clock sequence.
 - Preserve useful language-independent documentation, probe
   tooling, and udev rules. A host-side tool written in C is not a firmware shim;
   assess it independently rather than deleting it solely because of its language.
@@ -46,7 +51,10 @@ TI XML parser and device model with Rust generation. The host generator can rema
 Python; a Rust firmware does not require rewriting every development tool.
 Develop generator changes and generic tests in `~/reg_def`, then consume a
 published commit through a pinned Bzlmod dependency. Do not maintain a downstream
-patch or generator fork. Device-specific integration tests belong here.
+patch or generator fork. Device-specific integration tests belong here. Generate
+a standalone `no_std` crate root and use it directly as the register library
+source; no handwritten `include!` wrapper or source-path environment variable is
+needed.
 
 Preserve convenient named bitfield access. Generate integer-backed register-value
 wrappers with field getters/setters and raw `from_bits()` / `bits()` access. Field
@@ -89,11 +97,19 @@ The normal path should be `application -> concrete driver -> registers`.
   costs are low. Do not add trait layers or forwarding wrappers speculatively.
 - The board module describes wiring and assembles resources; it should not
   forward every peripheral operation. Shared clock/interrupt support stays narrow.
+- GPIO configuration is fixed during board initialization, which also releases global I/O retention
+  after configuring the pins. Output handles allow shared `&self` set/toggle operations through
+  hardware aliases. Keep construction restricted; callers coordinate sequences on the same pin.
+  No runtime pin reassignment or GPIO power-down API is exposed.
 - Existing crates are optional building blocks, not architectural requirements.
   Assess their scope and APIs before adopting them. Consistency and traceability
   matter more than assembling a stack of mismatched abstractions.
 - Test pure logic on the host and hardware behavior on boards. Do not distort
   driver architecture solely to make every MMIO operation mockable.
+- When replaying commits, reuse `poll::wait_for`, PRCM helpers, generated register access, and the
+  Rust vector table. Preserve fixed initialization, explicit resource ownership, and narrow APIs.
+  Explain hardware behavior tersely; cite TI functions for unusual sequences or undocumented policy,
+  rather than ordinary register layout. Add barriers/readbacks only for a documented requirement.
 
 ## Build, Neovim, and CI requirements
 
@@ -158,24 +174,80 @@ Editor integration is part of the first milestone, not follow-up polish:
 
 ## Current state and references
 
-The Rust/Bazel foundation is implemented. Bazel 9.2.0 fetches Rust 1.90.0,
-Python 3.12, and pinned formatting/lint tools. Host tests, Cortex-M33 library compilation, and a Rust/C FFI
-link check run through the same CI checks. Editor metadata is generated from
-Bazel; editor configuration belongs to the user's Neovim/defaults repositories.
-No Rust firmware is present yet. Standalone startup/GPIO, timers, UART, board
-testing, event logging, and RF remain subsequent milestones.
+Clocks are fixed to the LaunchPad crystals, supply to regulated internal DC/DC/nonboost,
+and cache enabled. See `firmware/STARTUP.md` for the supported scope and source references.
+Startup validates silicon and supply wiring and delegates CCFG source checks to
+the clock driver before calling SDK 8.33 SetupTrimDevice. It then completes LF/RTC
+setup in Rust. SysConfig 1.28.1 generates CCFG through Bazel.
+**2026-10-05 decision:** keep LF completion and a running RTC with a fresh epoch
+as mandatory board defaults before `main`. Accept the startup wait; applications
+choose RTC channels, interrupts, and radio synchronization later. Keep TI trim
+unmodified rather than extracting its initial LF/RTC configuration.
+The board owns one HF clock handle for request/readiness/one-way crystal switch;
+its Rust implementation calls TI's ROM safe-switch entry through `firmware/ti_rom.c`.
+LF qualification/loss detection and post-qualification RTC initialization are
+implemented. No clock alternatives, analog tuning, battery service, switch-back,
+or sleep-entry API is exposed. See `firmware/STARTUP.md` for the current contracts.
+SysConfig is the sole CCFG configuration source. The linked-image test checks
+address, size, and loadable placement, not a snapshot of configuration words.
+
+The Rust/Bazel foundation and standalone LED image are implemented. Bazel 9.2.0
+fetches the pinned Rust 1.90.0 and Python 3.12 toolchains. The image
+uses the upstream Rust register generator, generated CCFG, TI factory trim, independent
+reset/vector/linker support, GPIO, and an approximate software blink delay after
+an explicit HF crystal switch. Separate clock board-test images exercise the
+switch with PRIMASK initially clear and set.
+The linker exposes the full 1 MiB of flash; reset establishes all-secure CPU
+attribution. A bring-up image verified execution and a literal read in the final
+16 bytes on both boards. That image was removed after verification; its source
+remains in Git history and results in `firmware/STARTUP.md`.
+Timers, UART, board runners, event logging, and RF remain subsequent milestones.
+Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
+board tests passed with TI setup on 2026-10-03; physical power-on behavior for
+this SDK integration must still be checked on the boards. `BOOT_DIAGNOSTIC` reports
+boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 
 - Host tests: `bazel test //...`; complete checks: `tools/quality/check`.
+- Repository-wide `//:build_files` and `//:c_format` discover sources across
+  packages and run locally without caching; do not add per-package checks for
+  these tools. Python checks still declare their sources per package.
 - Rust formatting/lint: `bazel build --config=lint //...`; aspects cover existing
   Rust targets without per-library check targets.
-- Embedded build/lint: `bazel build --config=m33 --config=lint //foundation/...`.
+- Embedded build/lint:
+  `bazel build --config=m33 --config=lint //foundation/... //firmware/...`.
 - Editor metadata: `bazel run //tools/metadata:refresh`.
-- Arm GNU 13.2.Rel1 provides the embedded C compiler/linker for the Rust FFI link check.
-  A pinned standalone clang-format 19 binary formats owned C sources; metadata refresh exports
-  compile_commands.json. Repository-wide Buildifier and C format checks need no per-package targets.
+- Arm GNU 13.2.Rel1 compiles only embedded C and links firmware without a C runtime.
+  A pinned standalone clang-format 19 binary formats owned C sources; do not restore
+  the old custom wheel-download rule. Metadata refresh exports compile_commands.json.
+- When debugger tools are replayed, allow read-only member expressions such as
+  `BOOT_DIAGNOSTIC.stage`; the diagnostic record now has named struct/union fields.
+- Clock board tests `//firmware:clock_test` and `//firmware:clock_test_masked`
+  passed on both boards after probe reset; see `firmware/STARTUP.md` for evidence
+  and the separate physical-power-cycle status.
+- `//firmware:gpio_test` checks output configuration, set/clear/toggle, and pin isolation using shared
+  references. Added during review on 2026-10-10; hardware execution remains pending.
+- TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
+  are replayed, account for those defaults and enable RTC radio synchronization
+  explicitly; Rust startup leaves it disabled.
 - Previous C++ baseline: `8186f5e`; use Git history for reference.
 - Hardware runs must remain explicit and uncached. Raw results belong in ignored
   `.results/` directories, not source control.
 
 When commits are requested, keep messages concise, with at most four body
 sentences. Do not add coauthor or coding-agent attribution.
+
+## Post-rebase tasks
+
+- Add a reusable embedded-test framework integrated with Bazel and the XDS110 debugger tools.
+  Clock tests currently require explicit flash/debug commands and manual interpretation of results.
+  Evaluate existing frameworks against our hardware and build constraints before choosing an approach.
+  The runner must flash/verify the selected image, reset/run it, wait for a test result with a timeout,
+  capture panic/fault diagnostics, and return a failing exit status for failures or timeouts.
+  Use a consistent result protocol across test images and support explicit board selection and
+  sequential execution. Hardware runs must be opt-in and uncached; keep raw reports in `.results/`.
+  Migrate both clock-test variants and the GPIO test, and verify fresh execution on both boards.
+  Track physical power-on checks separately from debugger-reset tests.
+- Review code and comment wrapping repository-wide against the configured 100-column limit.
+  Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
+  Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.
+  Keep it separate from functional changes and run the pinned formatting checks afterward.

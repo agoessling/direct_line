@@ -11,7 +11,7 @@ A separate rustup installation is unnecessary.
 ```sh
 bazel test //...
 bazel build --config=lint //...
-bazel build --config=m33 --config=lint //foundation/...
+bazel build --config=m33 --config=lint //foundation/... //firmware/...
 tools/quality/check
 ```
 
@@ -28,7 +28,7 @@ Host and M33 lint runs check their respective conditional compilation paths;
 this does not enumerate every possible feature combination. As with ordinary
 Bazel wildcard builds, incompatible targets are skipped and targets tagged
 `manual` need explicit selection. The embedded invocation in `tools/quality/check`
-covers the foundation packages.
+covers both the foundation and firmware packages.
 
 `//:build_files` uses `buildifier_prebuilt`'s workspace discovery to check BUILD,
 MODULE.bazel, and other Starlark files across packages. `//:c_format` discovers
@@ -140,3 +140,26 @@ Clangd needs permission to query the pinned `arm-none-eabi-gcc` for its built-in
 include paths (the editor's `--query-driver` setting). C formatting is exported
 under `format_commands.c`. Cross-language Rust-FFI-to-C definition lookup is not
 provided by rust-analyzer; navigate the external function name within C instead.
+
+## TI configuration generation
+
+`firmware/config/board.syscfg` selects the supported LaunchPad clock/power choices.
+Bazel runs SysConfig 1.28.1.4785 against SimpleLink Low Power F2 SDK 8.33.00.16,
+using the installer's bundled Node. Both downloads are checksum-pinned. Only
+`ti_devices_config.c` enters the firmware; generated linker/library suggestions,
+RTOS support, and TI board drivers are not consumed. Generation executes in the
+Bazel sandbox with SDK metadata/templates declared as inputs. SysConfig reports
+omitted RTOS components during discovery; this configuration selects `--rtos none`.
+
+The SDK archive is about 714 MiB and SysConfig's installer about 161 MiB compressed.
+These are the largest cold-download costs; subsequent builds use Bazel's cache.
+This prototype uses TI's complete published distributions rather than maintaining
+repacked subsets. No GUI, Java, or system Node installation is required, although
+TI ships GUI files inside the installer. Build hosts are currently Linux x86_64.
+
+`bazel test //firmware:ccfg_test` cross-builds the real LED ELF via a platform
+transition and checks the section's fixed address, 124-byte size, and file-backed
+loadable mapping. SysConfig owns its values; there is no golden word snapshot to
+update when a board setting changes. Rust drivers check the specific fields their
+implementation requires. Changes to boot/debug/security settings still need
+configuration review and boot testing; the structural test cannot validate them.

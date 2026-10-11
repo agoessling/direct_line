@@ -12,7 +12,7 @@ from python.runfiles import runfiles
 def refresh_c_commands(root):
     # Ensure generated translation units exist even on a fresh checkout.
     subprocess.run(
-        ["bazel", "build", "--config=m33", "//foundation/..."],
+        ["bazel", "build", "--config=m33", "//foundation/...", "//firmware/..."],
         cwd=root,
         check=True,
     )
@@ -28,7 +28,7 @@ def refresh_c_commands(root):
                 "aquery",
                 "--config=m33",
                 "--output=jsonproto",
-                'mnemonic("CppCompile", deps(//foundation/...))',
+                'mnemonic("CppCompile", deps(//foundation/... + //firmware/...))',
             ],
             cwd=root,
             text=True,
@@ -59,6 +59,7 @@ def main():
             "--config",
             "m33",
             "//foundation/...",
+            "//firmware/...",
         ],
         cwd=root,
         check=True,
