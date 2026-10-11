@@ -60,7 +60,7 @@ use_repo(python, "python_3_12")
 bazel_dep(name = "reg_def", version = "0.1.0")
 git_override(
     module_name = "reg_def",
-    commit = "16bfeae63de1658d99fd82faf7f4a3c9f2519076",
+    commit = "9d2f6e1afbd9d144abd58e20e8c0566ec05cf656",
     remote = "https://github.com/agoessling/reg_def.git",
 )
 

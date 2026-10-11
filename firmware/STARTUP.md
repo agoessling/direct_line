@@ -226,8 +226,9 @@ These are static assembly observations; this change has not been rerun on hardwa
 
 ## GPIO bring-up
 
-`Board::take()` claims the board once, powers PERIPH, enables the GPIO clock,
-configures DIO6/7 as push-pull LED outputs, releases IO retention, and unmasks CPU
+`Board::take()` claims the board once, powers PERIPH, enables GPIO and GPT clocks,
+configures DIO6/7 as push-pull LED outputs, starts GPT1 with GPT0 stopped, releases IO retention,
+and unmasks CPU
 interrupts. No peripheral IRQ source is armed. Output operations use hardware
 set/clear/toggle aliases instead of software read-modify-write.
 
@@ -244,12 +245,9 @@ each LED toggle is a mask load followed by one MMIO store, with the register add
 the loop. The GPIO test's set/clear paths each issue one MMIO store. Output operations add no function
 calls, output-register reads, or interrupt masking. Cycle counts have not been measured.
 
-The application verifies initialized and zeroed RAM, then toggles both LEDs with
-an intentionally approximate loop delay. `BLINK_COUNT` increments after each
-pair of toggles and can be observed through a debugger. There is no timer, UART,
-logging queue, or RF initialization in this image. The application explicitly
-requests and switches to the 48 MHz HF crystal before blinking. The software
-delay still makes no timing-accuracy claim.
+The application verifies initialized and zeroed RAM, requests and switches to the 48 MHz HF crystal,
+then checks the timers and toggles both LEDs on timer events. `BLINK_COUNT` increments after each
+pair of toggles and can be observed through a debugger. UART, logging, and RF remain later milestones.
 
 Embedded compilation is required before flashing; compilation alone does not establish genuine
 power-on behavior or electrical timing. Keep raw hardware results outside source control.
@@ -267,6 +265,64 @@ Flash and inspect it with the same debugger workflow as the clock tests below, r
 `GPIO_TEST_RESULT` instead of `CLOCK_TEST_RESULT[0]`. `0x50415353` means every check passed;
 panics/faults use `BOOT_DIAGNOSTIC`. As of 2026-10-10, this image has not been run on hardware.
 Integrate it with the automated embedded-test runner after the rebase.
+
+## Timers and interrupt bring-up
+
+Board initialization assigns GPT1 to `Board::counter` and GPT0 to `Board::timer`. Either driver can
+use any of GPT0–GPT3; crate-private constructors require exclusive ownership, and handles cannot
+be copied or reassigned to another peripheral. The board enables selected clocks through PRCM
+before constructing the handles, retaining the shared undivided clock setting for their lifetime.
+
+`Board::counter` is a free-running 32-bit up-counter. `now()` reads its ticks;
+`elapsed_since()` subtracts modulo 2^32 and is valid for intervals shorter than one wrap.
+The undivided system clock is nominally 48 MHz on either HF source, giving about 89.5 seconds
+per wrap. The driver exposes no counter reset, clock-divider change, or power-down operation.
+
+`Board::timer` has mutable methods to arm a periodic or single timeout in microseconds,
+or stop and clear pending activity. Zero and overflowing intervals are rejected before changing
+the current configuration. Compile-time assertions in `timer_test.rs` check tick conversion boundaries
+when building the timer test images. Timing accuracy has not been measured against an independent clock.
+
+The Rust vector table installs all four GPT A handlers using the shared `interrupts.rs` map.
+Each timer constructor sets its IRQ's priority to 2 of 8. Reconfiguration
+disables only that NVIC source; DSB/ISB follow the Cortex-M33 CMSIS disable sequence. Timeout
+acknowledgement follows the pinned SDK's `driverlib/timer.h` `TimerIntClear` guidance: clear,
+read the same peripheral, then allow two CPU cycles for interrupt propagation. `interrupts()`
+returns that instance's relaxed atomic count of acknowledged timeouts, preserved across stopping/rearming.
+It carries no payload or synchronization guarantee; multiple timeouts can coalesce while masked.
+
+The bring-up image uses bounded `wait_for()` polling to check repeated periodic interrupts,
+no further interrupts after stopping, rejection of invalid intervals, and exactly one interrupt
+from a one-shot. It then blinks on nominal 500 ms periodic events. Inspect `TIMER_TEST_STATUS`
+through the debugger: 0 is before checks, 1 is in progress, and 2 means all timer assertions passed.
+Also require boot stage 2, clear fault status, and increasing `BLINK_COUNT`. Panic/fault details
+remain in `BOOT_DIAGNOSTIC`. These checks share the timer clock and do not establish absolute
+accuracy. Fresh board execution of this replayed timer implementation remains pending;
+move its checks into the common embedded-test framework after the rebase.
+
+### GPT assignment and isolation tests
+
+Build `bazel build --config=m33 --config=lint //firmware:timer_test_gpt{0,1,2,3}`. Each image uses
+the named GPT as counter and the other three as concurrent interrupt timers. They check progress
+from every source, invalid requests preserving an active timer, stopping one without stopping the
+others, one-shot rearming, and absence of interrupts after stopping all three. The test image owns
+initialization directly, instead of taking the default Board resources.
+
+After flashing the selected image, inspect `TIMER_INSTANCE_TEST_RESULT` for `0x50415353` and
+`BOOT_DIAGNOSTIC` for faults/panics, as with the other board tests. All four images build and lint;
+hardware execution is pending. Include them in the post-rebase embedded-test framework migration.
+
+### Instance selection cost
+
+The M33 `Counter` handle stores one generated register address (4 bytes); `Timer` stores a register
+block reference, IRQ mask, and count reference (12 bytes). Four acknowledgement counters use 16
+bytes of static RAM. There are no trait objects or indirect handler calls. On 2026-10-10, assembly
+inspection confirmed direct register accesses in each ISR, inlined counter reads with a handle
+address load, and register-descriptor loads in timer reconfiguration. Count reads also inline.
+Compared with the fixed GPT0/GPT1 implementation, the default bring-up ELF grew from 13,136 to
+13,500 bytes of text/read-only data and gained 12 bytes of BSS. These totals include the additional
+handlers and instance metadata; they are not a cycle measurement. Raw assembly and ELFs remain in
+ignored `.results/timer-instances/`.
 
 ## Clock board tests
 

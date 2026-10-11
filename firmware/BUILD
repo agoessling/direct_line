@@ -10,6 +10,7 @@ _DEVICE_SOURCES = [
     "ddi.rs",
     "device.rs",
     "gpio.rs",
+    "interrupts.rs",
     "lib.rs",
     "mmio.rs",
     "poll.rs",
@@ -17,6 +18,7 @@ _DEVICE_SOURCES = [
     "rtc.rs",
     "setup.rs",
     "startup.rs",
+    "timer.rs",
 ]
 
 rust_register_definition(
@@ -61,7 +63,11 @@ rust_library(
 
 rust_binary(
     name = "bringup",
-    srcs = ["main.rs"],
+    srcs = [
+        "main.rs",
+        "poll.rs",
+    ],
+    crate_root = "main.rs",
     linker_script = "memory.ld",
     rustc_flags = [
         "-Cpanic=abort",
@@ -137,4 +143,26 @@ rust_binary(
             ["masked_switch"],
         ),
     ]
+]
+
+# Each image assigns a different GPT as counter and the other three as interrupt timers.
+[
+    rust_binary(
+        name = "timer_test_gpt{}".format(index),
+        srcs = _DEVICE_SOURCES + ["timer_test.rs"],
+        crate_features = ["counter_gpt{}".format(index)],
+        crate_root = "timer_test.rs",
+        link_deps = [
+            ":ti_rom",
+            "//firmware/config:ccfg",
+            "@ti_sdk//:setup",
+        ],
+        linker_script = "memory.ld",
+        target_compatible_with = [
+            "@platforms//cpu:armv8-m",
+            "@platforms//os:none",
+        ],
+        deps = [":registers"],
+    )
+    for index in range(4)
 ]

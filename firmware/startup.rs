@@ -66,7 +66,14 @@ static VECTORS: VectorTable = VectorTable {
     pend_sv: FaultEntry,
     sys_tick: FaultEntry,
     // Install peripheral handlers here at compile time using their named IRQ numbers.
-    irqs: [FaultEntry; 47],
+    irqs: {
+        let mut irqs = [FaultEntry as Handler; 47];
+        irqs[crate::interrupts::GPT0A] = crate::timer::timer0_a;
+        irqs[crate::interrupts::GPT1A] = crate::timer::timer1_a;
+        irqs[crate::interrupts::GPT2A] = crate::timer::timer2_a;
+        irqs[crate::interrupts::GPT3A] = crate::timer::timer3_a;
+        irqs
+    },
 };
 
 // Reset assembly executes before any Rust prologue or hard-float instruction.

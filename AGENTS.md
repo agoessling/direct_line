@@ -56,6 +56,11 @@ a standalone `no_std` crate root and use it directly as the register library
 source; no handwritten `include!` wrapper or source-path environment variable is
 needed.
 
+Rust generation now emits hover documentation from XML descriptions, field positions/access/reset
+values, and named encodings. The shared parser retains `bitenum` metadata for documentation;
+it does not introduce generated Rust enums or hardware-value validation. Neovim hover was verified
+on 2026-10-11; its smoke test lives in `~/.config/nvim/tests/register_hover.lua`.
+
 Preserve convenient named bitfield access. Generate integer-backed register-value
 wrappers with field getters/setters and raw `from_bits()` / `bits()` access. Field
 operations act on local values; explicit volatile reads/writes access hardware.
@@ -157,8 +162,9 @@ Editor integration is part of the first milestone, not follow-up polish:
    This independent, cold-booting Rust image is the first substantial deliverable.
 5. **Timers and interrupts.** Add a free-running counter and the periodic/one-shot
    behavior needed. Define ownership, acknowledgement, rearming, tick conversion,
-   and wraparound. Verify timer-driven blinking and interrupt behavior, with host
-   tests for arithmetic. Distinguish measured timing from assumed timing.
+   and wraparound. Verify timer-driven blinking and interrupt behavior, with compile-time
+   checks for constant arithmetic or host tests as appropriate. Distinguish measured timing from
+   assumed timing.
 6. **UART.** Start with polling TX/RX and explicit nonblocking operations. Any
    blocking convenience has a clear name and timeout policy. Separate transport
    from formatting/logging. Pass scripted serial tests on both boards.
@@ -194,14 +200,20 @@ address, size, and loadable placement, not a snapshot of configuration words.
 The Rust/Bazel foundation and standalone LED image are implemented. Bazel 9.2.0
 fetches the pinned Rust 1.90.0 and Python 3.12 toolchains. The image
 uses the upstream Rust register generator, generated CCFG, TI factory trim, independent
-reset/vector/linker support, GPIO, and an approximate software blink delay after
-an explicit HF crystal switch. Separate clock board-test images exercise the
+reset/vector/linker support, GPIO, and timer-driven blinking after an explicit HF crystal switch.
+GPT1 provides a free-running counter; GPT0 provides periodic and one-shot timeout interrupts.
+This assignment lives in board initialization; either driver can use GPT0–GPT3 through private
+construction. Shared PRCM clock setup precedes handle construction, and each GPT A vector has its
+own acknowledgement count. The complete peripheral IRQ map lives in `firmware/interrupts.rs`.
+The bring-up image checks repeated interrupts, stopping, invalid intervals, and one-shot behavior.
+These timer changes have not been rerun on hardware after replaying the commit during the rebase.
+Separate clock board-test images exercise the
 switch with PRIMASK initially clear and set.
 The linker exposes the full 1 MiB of flash; reset establishes all-secure CPU
 attribution. A bring-up image verified execution and a literal read in the final
 16 bytes on both boards. That image was removed after verification; its source
 remains in Git history and results in `firmware/STARTUP.md`.
-Timers, UART, board runners, event logging, and RF remain subsequent milestones.
+UART, board runners, event logging, and RF remain subsequent milestones.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
 board tests passed with TI setup on 2026-10-03; physical power-on behavior for
 this SDK integration must still be checked on the boards. `BOOT_DIAGNOSTIC` reports
@@ -226,6 +238,10 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
   and the separate physical-power-cycle status.
 - `//firmware:gpio_test` checks output configuration, set/clear/toggle, and pin isolation using shared
   references. Added during review on 2026-10-10; hardware execution remains pending.
+- `//firmware:timer_test_gpt0` through `timer_test_gpt3` each assign one GPT as counter and the others
+  as concurrent timers, checking instance isolation, stopping, invalid requests, and one-shots.
+  Compile-time assertions check conversion boundaries using the constants in `clock.rs` and `timer.rs`.
+  All four images build and lint; hardware execution remains pending.
 - TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
   are replayed, account for those defaults and enable RTC radio synchronization
   explicitly; Rust startup leaves it disabled.
@@ -245,7 +261,8 @@ sentences. Do not add coauthor or coding-agent attribution.
   capture panic/fault diagnostics, and return a failing exit status for failures or timeouts.
   Use a consistent result protocol across test images and support explicit board selection and
   sequential execution. Hardware runs must be opt-in and uncached; keep raw reports in `.results/`.
-  Migrate both clock-test variants and the GPIO test, and verify fresh execution on both boards.
+  Migrate both clock-test variants, the GPIO test, bring-up timer checks, and the four GPT assignment
+  tests; verify fresh execution on both boards.
   Track physical power-on checks separately from debugger-reset tests.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.

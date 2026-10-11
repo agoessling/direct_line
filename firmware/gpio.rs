@@ -1,26 +1,10 @@
 //! Fixed push-pull GPIO outputs, configured during board initialization.
-use crate::prcm;
 use cc1354p10_registers as r;
-
-/// Enable the GPIO run-mode clock.
-///
-/// # Safety
-/// PERIPH must be powered. Caller must own PRCM configuration with interrupts masked.
-/// Call once per reset before configuring pins; keep power and clocks enabled afterward.
-pub(crate) unsafe fn initialize() {
-    // SAFETY: PERIPH is powered and the caller owns clock configuration during startup.
-    unsafe {
-        let mut gpio = r::PRCM.gpioclkgr.read();
-        gpio.set_clk_en(true);
-        r::PRCM.gpioclkgr.write(gpio);
-        prcm::apply_clock_settings();
-    }
-}
 
 /// Configure DIO0–31 as a push-pull output, initially low.
 ///
 /// # Safety
-/// GPIO initialization must be complete. Caller must own this pin and serialize IOC/GPIO
+/// GPIO power and its run-mode clock must be enabled. Caller must own this pin and serialize IOC/GPIO
 /// configuration with interrupts masked. No existing handle or peripheral may use this pin.
 /// Keep the pin configuration and GPIO power/clock available for the handle's lifetime.
 pub(crate) unsafe fn configure_output(dio: usize) -> OutputPin {

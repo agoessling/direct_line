@@ -1,6 +1,7 @@
 //! Board wiring and one-time assembly of the concrete peripheral drivers.
 use crate::gpio::{self, OutputPin};
 use crate::prcm;
+use crate::timer::{Counter, Instance, Timer};
 use cc1354p10_registers as r;
 use core::arch::asm;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -11,11 +12,13 @@ pub struct Board {
     pub red_led: OutputPin,
     pub green_led: OutputPin,
     pub clocks: crate::Clocks,
+    pub counter: Counter,
+    pub timer: Timer,
 }
 
 impl Board {
-    /// Acquire this board once per reset. Configures DIO6/7 LEDs, then enables
-    /// CPU interrupts; no peripheral interrupt source is armed.
+    /// Acquire this board once per reset. Configures DIO6/7 LEDs, starts GPT1,
+    /// and initializes GPT0 stopped, then enables CPU interrupts.
     /// Panics on a failed hardware handshake. This is foreground initialization.
     pub fn take() -> Option<Self> {
         if TAKEN.swap(true, Ordering::Relaxed) {
@@ -26,10 +29,15 @@ impl Board {
         let board = unsafe {
             const RED_LED_DIO: usize = 6;
             const GREEN_LED_DIO: usize = 7;
+            const COUNTER_GPT: Instance = Instance::Gpt1;
+            const TIMER_GPT: Instance = Instance::Gpt0;
             prcm::power_periph();
-            gpio::initialize();
+            prcm::enable_gpio_clock();
             let red_led = gpio::configure_output(RED_LED_DIO);
             let green_led = gpio::configure_output(GREEN_LED_DIO);
+            prcm::enable_timer_clocks(COUNTER_GPT.clock_mask() | TIMER_GPT.clock_mask());
+            let counter = Counter::initialize(COUNTER_GPT);
+            let timer = Timer::initialize(TIMER_GPT);
 
             // Release global retention after all board pins have their intended configuration.
             // TI SetupTrimDevice leaves pad sleep enabled after shutdown until pins are restored.
@@ -44,9 +52,11 @@ impl Board {
                 red_led,
                 green_led,
                 clocks: crate::Clocks { _private: () },
+                counter,
+                timer,
             }
         };
-        // SAFETY: GPIO initialization is complete; no interrupt source is armed.
+        // SAFETY: peripheral initialization is complete; GPT0's interrupt remains disabled.
         unsafe { asm!("cpsie i", options(nostack, preserves_flags)) };
         Some(board)
     }

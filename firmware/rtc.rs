@@ -1,5 +1,6 @@
 //! Board timebase started before main on the fixed LF crystal.
 //! Applications choose channel/interrupt/radio use; setup leaves these disabled.
+use crate::interrupts;
 use crate::poll::wait_for;
 use cc1354p10_registers as r;
 use r::aux_sysif::rtcsubsecincctl::Value as IncrementControl;
@@ -50,8 +51,10 @@ pub(crate) unsafe fn initialize() {
             .evflags
             .write(((1 << 0) | (1 << 8) | (1 << 16)).into());
         sync();
-        // RTC IRQ 4 (TRM Table 5-2); no channel is armed during startup.
-        r::CPU_NVIC.icpr0.write((1 << 4).into());
+        // No channel is armed during startup.
+        r::CPU_NVIC
+            .icpr0
+            .write((1 << interrupts::AON_RTC_COMB).into());
         control.set_reset(false);
         control.set_en(true);
         r::AON_RTC.ctl.write(control);

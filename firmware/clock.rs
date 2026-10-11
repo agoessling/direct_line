@@ -5,6 +5,9 @@ use crate::poll::wait_for;
 use cc1354p10_registers as r;
 use core::arch::asm;
 
+/// RCOSC HF and the board's HF crystal both nominally supply 48 MHz.
+pub(crate) const HF_CLOCK_HZ: u32 = 48_000_000;
+
 unsafe extern "C" {
     // ti_rom.c exposes TI rom.h's HapiHFSourceSafeSwitch macro.
     fn ti_hf_source_safe_switch();
