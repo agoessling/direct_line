@@ -1,23 +1,8 @@
-#![no_std]
-#![no_main]
-//! Test each GPT assignment with one counter and three independent interrupt timers.
-mod clock;
-mod ddi;
-mod interrupts;
-mod mmio;
-mod poll;
-#[expect(dead_code, reason = "this image uses GPT clocks only")]
-mod prcm;
-mod rtc;
-mod setup;
-mod startup;
-mod timer;
-
+//! Each GPT assignment with one counter and three independent interrupt timers.
+use crate::poll::wait_for;
+use crate::timer::{Counter, GPT_CLOCK_HZ, Instance, Timer, ticks_from_us};
+use crate::{clock, interrupts, prcm};
 use cc1354p10_registers as r;
-use core::arch::asm;
-use core::sync::atomic::{AtomicU32, Ordering};
-use poll::wait_for;
-use timer::{Counter, GPT_CLOCK_HZ, Instance, Timer, ticks_from_us};
 
 // Check conversion boundaries at build time using the driver's actual clock configuration.
 const _: () = {
@@ -28,28 +13,13 @@ const _: () = {
     assert!(ticks_from_us(u32::MAX).is_none());
 };
 
-#[unsafe(no_mangle)]
-static TIMER_INSTANCE_TEST_RESULT: AtomicU32 = AtomicU32::new(0);
-
-#[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub fn run(counter_index: usize) {
     const INSTANCES: [Instance; 4] = [
         Instance::Gpt0,
         Instance::Gpt1,
         Instance::Gpt2,
         Instance::Gpt3,
     ];
-    let counter_index = if cfg!(feature = "counter_gpt0") {
-        0
-    } else if cfg!(feature = "counter_gpt1") {
-        1
-    } else if cfg!(feature = "counter_gpt2") {
-        2
-    } else {
-        assert!(cfg!(feature = "counter_gpt3"));
-        3
-    };
-
     // SAFETY: this image replaces Board initialization; startup still masks CPU interrupts.
     // Each GPT is constructed once, with one counter and the other three as timers.
     let (counter, mut timers) = unsafe {
@@ -117,12 +87,6 @@ pub extern "C" fn main() -> ! {
     let stopped = timers.each_ref().map(Timer::interrupts);
     wait_ten_ms(&counter);
     assert_eq!(timers.each_ref().map(Timer::interrupts), stopped);
-
-    TIMER_INSTANCE_TEST_RESULT.store(0x5041_5353, Ordering::Relaxed);
-    loop {
-        // SAFETY: tests are complete; park for debugger inspection.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
-    }
 }
 
 fn wait_ten_ms(counter: &Counter) {

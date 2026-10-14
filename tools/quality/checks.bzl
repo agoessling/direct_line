@@ -6,10 +6,10 @@ _HOST = ["@platforms//os:linux", "@platforms//cpu:x86_64"]
 _RUFF_CONFIG = Label("//:.ruff.toml")
 
 def python_checks(name, srcs):
-    """Check Python formatting and lint with explicit sources and configuration.
+    """Check Python formatting, lint, and types using explicit source labels.
 
     Args:
-        name: Prefix for the format and lint test targets.
+        name: Prefix for the format, lint, and typecheck test targets.
         srcs: Python source labels in this package.
     """
     for suffix, command in [("format", ["format", "--check"]), ("lint", ["check"])]:
@@ -21,3 +21,11 @@ def python_checks(name, srcs):
             size = "small",
             target_compatible_with = _HOST,
         )
+    native_test(
+        name = name + "_typecheck",
+        src = "//tools/quality:basedpyright",
+        args = ["$(rootpath {})".format(src) for src in srcs],
+        data = srcs,
+        size = "small",
+        target_compatible_with = _HOST,
+    )

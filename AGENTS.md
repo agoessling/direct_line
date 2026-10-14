@@ -201,7 +201,7 @@ SysConfig is the sole CCFG configuration source. The linked-image test checks
 address, size, and loadable placement, not a snapshot of configuration words.
 
 The Rust/Bazel foundation and standalone LED image are implemented. Bazel 9.2.0
-fetches the pinned Rust 1.90.0 and Python 3.12 toolchains. The image
+fetches the pinned Rust 1.90.0 and Python 3.14 toolchains. The image
 uses the upstream Rust register generator, generated CCFG, TI factory trim, independent
 reset/vector/linker support, GPIO, polling UART0, and timer-driven blinking after an explicit HF
 crystal switch. Board initialization routes UART0 RX/TX to DIO12/13 before releasing I/O retention.
@@ -220,15 +220,17 @@ construction. The shared GPT divider is set once before handle construction; eac
 PERIPH and enables only its own clock gate. Each GPT A vector has its
 own acknowledgement count. The complete peripheral IRQ map lives in `firmware/interrupts.rs`.
 The bring-up image checks repeated interrupts, stopping, invalid intervals, and one-shot behavior.
-These timer changes have not been rerun on hardware after replaying the commit during the rebase.
-Separate clock board-test images exercise the
-switch with PRIMASK initially clear and set.
+The HIL suite includes these timer checks and clock switching with PRIMASK initially clear and set.
 The linker exposes the full 1 MiB of flash; reset establishes all-secure CPU
 attribution. A bring-up image verified execution and a literal read in the final
 16 bytes on both boards. That image was removed after verification; its source
 remains in Git history and results in `firmware/STARTUP.md`.
-Board runners, event logging, and RF remain subsequent milestones. Fresh UART hardware execution
-after this replay remains pending; compilation is not serial or electrical validation.
+A minimal custom HIL runner uses pinned TI UniFlash/CCS Scripting and explicit XDS110 selection.
+Python 3.14 runs TI's typed API; CloudAgent/Node come from the same UniFlash package.
+`bazel run //tools/debug:hil -- --check-runtime` checks this runtime without accessing a board. It flashes
+one suite image per board, then resets and selects each case through debugger-visible records.
+Event logging and RF remain subsequent milestones; UART electrical and external baud validation
+remain separate from the suite's internal loopback checks.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
 board tests passed with TI setup on 2026-10-03; physical power-on behavior for
 this SDK integration must still be checked on the boards. `BOOT_DIAGNOSTIC` reports
@@ -237,7 +239,7 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 - Host tests: `bazel test //...`; complete checks: `tools/quality/check`.
 - Repository-wide `//:build_files` and `//:c_format` discover sources across
   packages and run locally without caching; do not add per-package checks for
-  these tools. Python checks still declare their sources per package.
+  these tools. Python checks declare sources per package and include pinned basedpyright checking.
 - Rust formatting/lint: `bazel build --config=lint //...`; aspects cover existing
   Rust targets without per-library check targets.
 - Embedded build/lint:
@@ -246,20 +248,14 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 - Arm GNU 13.2.Rel1 compiles only embedded C and links firmware without a C runtime.
   A pinned standalone clang-format 19 binary formats owned C sources; do not restore
   the old custom wheel-download rule. Metadata refresh exports compile_commands.json.
-- When debugger tools are replayed, allow read-only member expressions such as
-  `BOOT_DIAGNOSTIC.stage`; the diagnostic record now has named struct/union fields.
-- Clock board tests `//firmware:clock_test` and `//firmware:clock_test_masked`
-  passed on both boards after probe reset; see `firmware/STARTUP.md` for evidence
-  and the separate physical-power-cycle status.
-- `//firmware:gpio_test` checks output configuration, set/clear/toggle, and pin isolation using shared
-  references. Added during review on 2026-10-10; hardware execution remains pending.
-- `//firmware:timer_test_gpt0` through `timer_test_gpt3` each assign one GPT as counter and the others
-  as concurrent timers, checking instance isolation, stopping, invalid requests, and one-shots.
-  Compile-time assertions check conversion boundaries using the constants in `clock.rs` and `timer.rs`.
-  All four images build and lint; hardware execution remains pending.
-- `//firmware:uart_test_uart0` through `uart_test_uart3` check each UART's configuration and internal
-  loopback at different baud rates, including rejection of invalid rates before hardware writes.
-  All four images build and lint; hardware execution and external baud accuracy remain unverified.
+- Hardware tests: `bazel run //tools/debug:hil -- --probe SERIAL`; add `--filter 'clock/*'` to
+  select cases or use `--list` without hardware. Multiple `--probe` options run boards sequentially.
+- `//firmware:hil_test` combines both clock variants, GPIO, four GPT assignments, four UART
+  instances, and board bring-up. Dedicated pass/panic/UsageFault/timeout cases check the harness.
+  The runner validates fresh request/result state and execution tokens on every reset, captures
+  diagnostics, writes JSON/JUnit reports, and fails on unexpected outcomes or debugger errors.
+- See `docs/hardware_tests.md` for current validation status and measurement limits. Historical
+  clock/full-flash evidence and the separate physical-power-cycle status remain in `firmware/STARTUP.md`.
 - TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
   are replayed, account for those defaults and enable RTC radio synchronization
   explicitly; Rust startup leaves it disabled.
@@ -272,16 +268,11 @@ sentences. Do not add coauthor or coding-agent attribution.
 
 ## Post-rebase tasks
 
-- Add a reusable embedded-test framework integrated with Bazel and the XDS110 debugger tools.
-  Clock tests currently require explicit flash/debug commands and manual interpretation of results.
-  Evaluate existing frameworks against our hardware and build constraints before choosing an approach.
-  The runner must flash/verify the selected image, reset/run it, wait for a test result with a timeout,
-  capture panic/fault diagnostics, and return a failing exit status for failures or timeouts.
-  Use a consistent result protocol across test images and support explicit board selection and
-  sequential execution. Hardware runs must be opt-in and uncached; keep raw reports in `.results/`.
-  Migrate both clock-test variants, the GPIO test, bring-up timer checks, the four GPT assignment
-  tests, and the four UART instance tests; verify fresh execution on both boards.
-  Track physical power-on checks separately from debugger-reset tests.
+- The initial embedded-test framework is implemented. On 2026-10-12, all 16 cases passed freshly on
+  both boards through one runner invocation, with no reset/reconnect retries. Strict Python checks,
+  host tests, formatting/lint, and embedded builds passed. Keep physical power-on, external pin/baud
+  accuracy, and future performance measurements separate from debugger-reset functional tests.
+  See `docs/hardware_tests.md`.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.

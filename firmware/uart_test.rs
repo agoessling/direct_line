@@ -1,44 +1,19 @@
-#![no_std]
-#![no_main]
-//! Per-instance UART configuration and internal loopback checks; no external wiring required.
-mod clock;
-mod ddi;
-mod interrupts;
-mod ioc;
-mod mmio;
-mod poll;
-#[expect(dead_code, reason = "this image does not enable the GPIO clock")]
-mod prcm;
-mod rtc;
-mod setup;
-mod startup;
-#[expect(
-    dead_code,
-    reason = "this image uses a counter without arming interrupt timers"
-)]
-mod timer;
-mod uart;
-
+//! Per-instance UART configuration and internal loopback; no external wiring required.
+use crate::poll::wait_for;
+use crate::timer::{Counter, GPT_CLOCK_HZ};
+use crate::uart::{Instance, Uart};
+use crate::{clock, prcm, timer, uart};
 use cc1354p10_registers as r;
-use core::arch::asm;
-use core::sync::atomic::{AtomicU32, Ordering};
-use poll::wait_for;
-use timer::{Counter, GPT_CLOCK_HZ};
-use uart::{Instance, Uart};
 
-#[unsafe(no_mangle)]
-static UART_TEST_RESULT: AtomicU32 = AtomicU32::new(0);
-
-#[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
-    let (instance, registers, baud, divisors, ports) = if cfg!(feature = "uart0") {
+pub fn run(index: usize) {
+    let (instance, registers, baud, divisors, ports) = if index == 0 {
         (Instance::Uart0, &r::UART0, 9_600, (312, 32), (15, 16))
-    } else if cfg!(feature = "uart1") {
+    } else if index == 1 {
         (Instance::Uart1, &r::UART1, 115_200, (26, 3), (19, 20))
-    } else if cfg!(feature = "uart2") {
+    } else if index == 2 {
         (Instance::Uart2, &r::UART2, 1_000_000, (3, 0), (65, 66))
     } else {
-        assert!(cfg!(feature = "uart3"));
+        assert_eq!(index, 3);
         (Instance::Uart3, &r::UART3, 3_000_000, (1, 0), (69, 70))
     };
 
@@ -125,12 +100,6 @@ pub extern "C" fn main() -> ! {
             }
         });
         assert_eq!(uart.try_read(), Ok(None));
-    }
-
-    UART_TEST_RESULT.store(0x5041_5353, Ordering::Relaxed);
-    loop {
-        // SAFETY: tests are complete; park for debugger inspection.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
     }
 }
 

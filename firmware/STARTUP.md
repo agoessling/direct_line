@@ -256,17 +256,15 @@ power-on behavior or electrical timing. Keep raw hardware results outside source
 
 ### GPIO board test
 
-Build `bazel build --config=m33 --config=lint //firmware:gpio_test`. This image checks both LED pin
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'gpio/*'`. This case checks both LED pin
 configurations, output enables, global retention release, and initial low levels. It exercises
 set/clear and toggle operations across all four LED states, verifies unrelated output latches are
 preserved, and uses multiple shared references to the same output. It also checks that `OutputPin`
 implements `Sync`. The checks are sequential; they do not exercise interrupt interleavings or measure
 electrical pad levels or timing.
 
-Flash and inspect it with the same debugger workflow as the clock tests below, reading
-`GPIO_TEST_RESULT` instead of `CLOCK_TEST_RESULT[0]`. `0x50415353` means every check passed;
-panics/faults use `BOOT_DIAGNOSTIC`. As of 2026-10-10, this image has not been run on hardware.
-Integrate it with the automated embedded-test runner after the rebase.
+The common runner checks completion and captures panic/fault diagnostics. See
+[hardware tests](../docs/hardware_tests.md) for execution and current validation status.
 
 ## Polling UART
 
@@ -304,19 +302,19 @@ the IOC lookup and byte FIFO operations inline. A UART handle stores one registe
 
 The bring-up image emits `DIRECT_LINE_RUST v1` and `RESULT PASS bringup` after memory/timer checks,
 then echoes received bytes while blinking the LEDs. Receive errors emit `RX_ERROR`. Fresh serial
-and hardware tests of this replayed implementation remain pending; use the board runners once replayed.
+testing of this replayed implementation remains separate from the internal loopback suite below.
 
 ### UART instance tests
 
-Build `bazel build --config=m33 --config=lint //firmware:uart_test_uart{0,1,2,3}`. Each image selects
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'uart/*'`. Each case selects
 one UART on DIO12/13, at 9600, 115200, 1,000,000, or 3,000,000 baud respectively. The checks cover
 clock gating, power selection, pin routing, fixed 8N1/FIFO settings, divisor values, invalid requests
 leaving configuration unchanged, zero-timeout behavior, and all 256 byte values through internal
-loopback. Each image owns initialization directly and requires no external loopback wire.
+loopback. Each case owns initialization directly and requires no external loopback wire.
 
-`UART_TEST_RESULT == 0x50415353` indicates completion; faults/panics use `BOOT_DIAGNOSTIC`. The images
-build and lint, but have not been run on hardware. Internal loopback does not measure physical pin
-behavior or absolute baud accuracy; retain external serial tests in the later board-runner milestone.
+The runner checks completion and captures faults/panics through `BOOT_DIAGNOSTIC`. Internal loopback
+does not measure physical pin behavior or absolute baud accuracy; external serial tests remain
+separate work. Current execution evidence is recorded in [hardware tests](../docs/hardware_tests.md).
 
 ## Timers and interrupt bring-up
 
@@ -335,7 +333,7 @@ per wrap. The driver exposes no counter reset, clock-divider change, or power-do
 `Board::timer` has mutable methods to arm a periodic or single timeout in microseconds,
 or stop and clear pending activity. Zero and overflowing intervals are rejected before changing
 the current configuration. Compile-time assertions in `timer_test.rs` check tick conversion boundaries
-when building the timer test images. Timing accuracy has not been measured against an independent clock.
+when building the HIL suite. Timing accuracy has not been measured against an independent clock.
 
 The Rust vector table installs all four GPT A handlers using the shared `interrupts.rs` map.
 Each timer constructor sets its IRQ's priority to 2 of 8. Reconfiguration
@@ -351,20 +349,18 @@ from a one-shot. It then blinks on nominal 500 ms periodic events. Inspect `TIME
 through the debugger: 0 is before checks, 1 is in progress, and 2 means all timer assertions passed.
 Also require boot stage 2, clear fault status, and increasing `BLINK_COUNT`. Panic/fault details
 remain in `BOOT_DIAGNOSTIC`. These checks share the timer clock and do not establish absolute
-accuracy. Fresh board execution of this replayed timer implementation remains pending;
-move its checks into the common embedded-test framework after the rebase.
+accuracy. The `board/bringup` HIL case also exercises these checks with automatic result collection.
 
 ### GPT assignment and isolation tests
 
-Build `bazel build --config=m33 --config=lint //firmware:timer_test_gpt{0,1,2,3}`. Each image uses
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'timer/*'`. Each case uses
 the named GPT as counter and the other three as concurrent interrupt timers. They check progress
 from every source, invalid requests preserving an active timer, stopping one without stopping the
 others, one-shot rearming, and absence of interrupts after stopping all three. The test image owns
 initialization directly, instead of taking the default Board resources.
 
-After flashing the selected image, inspect `TIMER_INSTANCE_TEST_RESULT` for `0x50415353` and
-`BOOT_DIAGNOSTIC` for faults/panics, as with the other board tests. All four images build and lint;
-hardware execution is pending. Include them in the post-rebase embedded-test framework migration.
+The suite resets before each GPT assignment and reports each case independently. See
+[hardware tests](../docs/hardware_tests.md) for current execution evidence.
 
 ### Instance selection cost
 
@@ -380,35 +376,18 @@ ignored `.results/timer-instances/`.
 
 ## Clock board tests
 
-Build `bazel build --config=m33 --config=lint //firmware:clock_test
-//firmware:clock_test_masked` (one command). These use the production startup and
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'clock/*'`. These cases use production startup and
 CCFG. Both verify the initial RCOSC state, LF selection and loss detection,
 RTC increment/epoch/progress, rejection of switching before a request, successful
 HF switching, DC/DC automatic-clock restoration and repeated-call behavior.
 The first starts the ROM switch with interrupts enabled; the second starts with
 PRIMASK set. Both require the previous mask to be preserved.
 
-After programming, verification and reset, inspect `CLOCK_TEST_RESULT[0]` with
-the Bazel JTAG runner. `0x50415353` (PASS) is written only after every assertion
-succeeds. Words 1–7 capture OSC status/control, RTC increment/control, reset
-control, regulator control and the actual ROM entry. Word 8 is the initial RTC
-seconds value (zero); word 9 is positive elapsed time in 16.16 units; word 10
-records the initial mask (0 or 1), and word 11 is zero after the test unmasks.
-Also require boot stage 2 and CFSR/HFSR zero. These tests do not measure absolute
-crystal accuracy or deliberately stop a crystal to test fault recovery.
-
-At this rebase stage, Bazel flash/JTAG runners are available in the later tooling
-commit `f7a31b4`; use an isolated checkout of that commit and pass the absolute
-ELF built here. For example, from that checkout:
-
-```sh
-bazel run //tools/debug:flash -- --probe LS4500IY --elf /absolute/clock_test.elf
-bazel run //tools/debug:debug_target -- --probe LS4500IY --elf /absolute/clock_test.elf \
-  --expression 'CLOCK_TEST_RESULT[0]' --expression 'CLOCK_TEST_RESULT[10]'
-```
-
-Repeat explicitly for both images and both probes; hardware runs are uncached.
-Restore the normal `bringup` image after the tests.
+The common runner verifies completion and boot/fault state after every case. Initial RTC seconds
+are sampled before the host's selection breakpoint, because the RTC advances during debugger halts.
+These tests do not measure absolute crystal accuracy or deliberately stop a crystal to test recovery.
+The older individual-image observations below are historical; current suite results are recorded in
+[hardware tests](../docs/hardware_tests.md).
 
 On 2026-10-02, both LS4500IY and LS4500Q0 passed both clock images after flash
 verification and probe reset. Each reported PASS, boot stage 2, CFSR/HFSR zero,

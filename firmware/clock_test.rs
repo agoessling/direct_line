@@ -1,16 +1,9 @@
-#![no_std]
-#![no_main]
 //! Explicit board test: fixed setup, HF switch, interrupt-mask preservation.
-mod poll;
 
+use crate::device::Board;
+use crate::poll::wait_for;
 use cc1354p10_registers as r;
 use core::arch::asm;
-use device::Board;
-use poll::wait_for;
-
-/// PASS last; remaining words are hardware observations, read with CPU halted.
-#[unsafe(no_mangle)]
-pub static mut CLOCK_TEST_RESULT: [u32; 12] = [0; 12];
 
 fn primask() -> u32 {
     let value;
@@ -19,8 +12,7 @@ fn primask() -> u32 {
     value
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub fn run(masked_switch: bool, boot_rtc_seconds: u32) {
     let mut board = Board::take().unwrap();
     // Reject switching before a crystal request.
     assert!(!board.clocks.try_switch_to_hf_crystal());
@@ -39,8 +31,7 @@ pub extern "C" fn main() -> ! {
         assert_eq!(r::AON_RTC.subsecinc.read().bits(), 0x80_0000);
         assert_eq!(r::AON_RTC.ctl.read().bits(), 1 << 0); // EN; no radio/channel outputs.
         assert_eq!(r::AON_RTC.chctl.read().bits(), 0);
-        let start_seconds = r::AON_RTC.sec.read().bits();
-        assert_eq!(start_seconds, 0); // LF qualification happened before epoch.
+        assert_eq!(boot_rtc_seconds, 0); // LF qualification happened before epoch.
         // TIME is a live, coherent 16.16 sample (TRM 18.4.1.13). SUBSEC alone
         // is a snapshot latched by reading SEC, so polling it would never advance.
         let start = r::AON_RTC.time.read().bits();
@@ -49,8 +40,8 @@ pub extern "C" fn main() -> ! {
         board.clocks.request_hf_crystal();
         wait_for(2_000_000, || board.clocks.hf_crystal_ready());
 
-        // Each image checks that the first switch preserves its initial interrupt mask.
-        if cfg!(feature = "masked_switch") {
+        // Each case checks that the first switch preserves its initial interrupt mask.
+        if masked_switch {
             asm!("cpsid i", options(nostack, preserves_flags));
         }
         let before = primask();
@@ -70,29 +61,5 @@ pub extern "C" fn main() -> ! {
             elapsed = r::AON_RTC.time.read().bits().wrapping_sub(start);
             elapsed != 0
         });
-
-        // Save debugger observations, then publish PASS after every check has succeeded.
-        let result = &raw mut CLOCK_TEST_RESULT;
-        result.write_volatile([
-            0,
-            r::AUX_DDI0_OSC.stat0.read().bits(),
-            r::AUX_DDI0_OSC.ctl0.read().bits(),
-            r::AON_RTC.subsecinc.read().bits(),
-            r::AON_RTC.ctl.read().bits(),
-            r::AON_PMCTL.resetctl.read().bits(),
-            r::AON_PMCTL.pwrctl.read().bits(),
-            (0x1000_0080 as *const u32).read_volatile(),
-            start_seconds,
-            elapsed,
-            before,
-            primask(),
-        ]);
-        (&raw mut (*result)[0]).write_volatile(0x5041_5353);
-    }
-    loop {
-        board.green_led.toggle();
-        for _ in 0..1_000_000 {
-            core::hint::spin_loop();
-        }
     }
 }

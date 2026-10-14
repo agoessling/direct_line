@@ -16,6 +16,10 @@ jobs:
           repository-cache: true
       - name: Formatting, lint, host tests, and embedded build
         run: tools/quality/check
+      - name: Build hardware runner and discover cases without a board
+        run: bazel run //tools/debug:hil -- --list
+      - name: Check CCS scripting runtime without a board
+        run: bazel run //tools/debug:hil -- --check-runtime
       - name: Refresh editor metadata
         run: bazel run //tools/metadata:refresh
       - name: Ensure checks did not change tracked files

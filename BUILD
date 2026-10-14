@@ -6,6 +6,7 @@ exports_files([
     ".ruff.toml",
     ".clang-format",
     "rustfmt.toml",
+    "pyrightconfig.json",
 ])
 
 alias(

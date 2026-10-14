@@ -17,7 +17,11 @@ py_binary(
         "@rust_host_tools//:rustc",
     ],
     visibility = ["//visibility:public"],
-    deps = ["@rules_python//python/runfiles"],
+    deps = [
+        "@python_deps//pyelftools",
+        "@rules_python//python/runfiles",
+        "@ti_debug_tools//:scripting",
+    ],
 )
 
 python_checks(

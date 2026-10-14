@@ -6,6 +6,11 @@ library, Python runtime, and CI formatting/lint tools. Their versions and hashes
 are recorded in `MODULE.bazel`, `MODULE.bazel.lock`, and `.bazelversion`.
 A separate rustup installation is unnecessary.
 
+Hardware execution is an explicit `bazel run //tools/debug:hil -- --probe SERIAL` operation.
+The runner builds its Cortex-M33 suite through the existing platform transition, programs it once,
+and resets between cases. See [hardware tests](hardware_tests.md) for test selection, debugger
+dependencies, and the distinction between reset tests and physical power-on validation.
+
 ## Build and checks
 
 ```sh
@@ -16,8 +21,9 @@ tools/quality/check
 ```
 
 `tools/quality/check` runs the three commands above; CI uses the same entry point.
-`bazel test //...` runs host tests, Ruff checks, and repository-wide Buildifier
-and C formatting checks.
+`bazel test //...` runs host tests, Ruff checks, basedpyright checks, and repository-wide Buildifier
+and clang-format checks. `python_checks` adds formatting, lint, and type checks for each declared
+Python source set, including the debugger runner, editor metadata generator, and CCFG image test.
 `--config=lint` applies the upstream Rustfmt and Clippy aspects to existing Rust
 targets, using their declared sources and dependencies. New Rust libraries,
 binaries, and tests selected by `//...` participate without separate lint targets.
@@ -32,7 +38,7 @@ covers both the foundation and firmware packages.
 
 `//:build_files` uses `buildifier_prebuilt`'s workspace discovery to check BUILD,
 MODULE.bazel, and other Starlark files across packages. `//:c_format` discovers
-owned `.c` and `.h` files using a small shell runner. Both cover new packages and
+owned `.c`, `.h`, and debugger `.js` files using a small shell runner. Both cover new packages and
 untracked files without additional check declarations. They skip root hidden
 directories and `bazel-*` outputs, and do not follow directory symlinks; the C
 check also excludes `third_party`. Buildifier still checks our build integration
@@ -41,9 +47,12 @@ under `third_party`.
 These two tests run locally and uncached because discovery reads the checkout
 rather than a declared source list. This trades cached formatting results for
 automatic coverage; the formatter executables remain pinned and Bazel-fetched.
-Python checks still use `bazel_skylib`'s `native_test` with `ruff_prebuilt` through
-`tools/quality/checks.bzl`. They declare sources per package and remain cacheable;
-include new Python sources in those declarations.
+Python checks use `bazel_skylib`'s `native_test` through `tools/quality/checks.bzl`.
+They declare sources per package and remain cacheable; include new Python sources in those declarations.
+Basedpyright 1.39.9 uses the same `pyrightconfig.json` as the editor, with recommended diagnostics
+and warnings treated as failures. Its Bazel launcher reuses SysConfig's pinned Node and the pinned
+Python interpreter. Run `bazel run //tools/quality:basedpyright` to check all owned Python files.
+The editor's generated import paths still come from `.tools/project.json`.
 
 To apply formatting, run the relevant tool with explicit file paths:
 

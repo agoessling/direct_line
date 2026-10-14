@@ -1,13 +1,6 @@
-#![no_std]
-#![no_main]
 //! Board test for GPIO configuration, shared output handles, and pin isolation.
+use crate::{device::Board, gpio::OutputPin};
 use cc1354p10_registers as r;
-use core::arch::asm;
-use device::{Board, OutputPin};
-
-/// Written only after every check succeeds; inspect with the debugger.
-#[unsafe(no_mangle)]
-pub static mut GPIO_TEST_RESULT: u32 = 0;
 
 fn output_levels() -> u32 {
     // SAFETY: Board has enabled GPIO; reading the output latch has no side effects.
@@ -16,8 +9,7 @@ fn output_levels() -> u32 {
 
 fn require_sync<T: Sync>() {}
 
-#[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub fn run() {
     const RED: u32 = 1 << 6;
     const GREEN: u32 = 1 << 7;
     const LEDS: u32 = RED | GREEN;
@@ -71,12 +63,5 @@ pub extern "C" fn main() -> ! {
         assert_eq!(output_levels(), expected ^ GREEN);
         green.toggle();
         assert_eq!(output_levels(), expected);
-    }
-
-    // SAFETY: sole result writer; volatile store publishes completion for the debugger.
-    unsafe { (&raw mut GPIO_TEST_RESULT).write_volatile(0x5041_5353) };
-    loop {
-        // SAFETY: test is complete; remain parked for inspection.
-        unsafe { asm!("wfi", options(nomem, nostack)) };
     }
 }
