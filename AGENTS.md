@@ -227,8 +227,11 @@ attribution. A bring-up image verified execution and a literal read in the final
 remains in Git history and results in `firmware/STARTUP.md`.
 A minimal custom HIL runner uses pinned TI UniFlash/CCS Scripting and explicit XDS110 selection.
 Python 3.14 runs TI's typed API; CloudAgent/Node come from the same UniFlash package.
-`bazel run //tools/debug:hil -- --check-runtime` checks this runtime without accessing a board. It flashes
-one suite image per board, then resets and selects each case through debugger-visible records.
+`bazel run //tools/debug:hil -- --check-runtime` checks this runtime without accessing a board.
+Hardware runs identify, flash, verify, and execute one suite in a single CCS session, resetting between
+cases. Routine checks use one explicit board; use two for RF or occasional board/setup comparisons.
+The debugger stops after completed panic/fault diagnostic writes and captures full context only for
+unexpected outcomes or intentional panic/fault cases. Reports include host-side phase timings.
 Event logging and RF remain subsequent milestones; UART electrical and external baud validation
 remain separate from the suite's internal loopback checks.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
@@ -273,6 +276,10 @@ sentences. Do not add coauthor or coding-agent attribution.
   host tests, formatting/lint, and embedded builds passed. Keep physical power-on, external pin/baud
   accuracy, and future performance measurements separate from debugger-reset functional tests.
   See `docs/hardware_tests.md`.
+- On 2026-10-13, single-board HIL optimization reduced measured runtime from about 48.5 seconds
+  to 38.7 seconds on LS4500Q0. Both optimized runs passed all 16 cases without reset retries;
+  18 Bazel test targets and host/embedded lint/build checks passed. See the runtime profile in
+  `docs/hardware_tests.md`; host phase timings do not measure MCU instruction latency.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.

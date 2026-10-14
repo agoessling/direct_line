@@ -8,7 +8,7 @@ from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import SymbolTableSection
 
-from tools.debug.hil_types import Case
+from tools.debug.protocol import Case
 
 type TestRecord = tuple[int, int, int, bytes]
 

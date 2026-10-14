@@ -38,7 +38,7 @@ covers both the foundation and firmware packages.
 
 `//:build_files` uses `buildifier_prebuilt`'s workspace discovery to check BUILD,
 MODULE.bazel, and other Starlark files across packages. `//:c_format` discovers
-owned `.c`, `.h`, and debugger `.js` files using a small shell runner. Both cover new packages and
+owned `.c` and `.h` files using a small shell runner. Both cover new packages and
 untracked files without additional check declarations. They skip root hidden
 directories and `bazel-*` outputs, and do not follow directory symlinks; the C
 check also excludes `third_party`. Buildifier still checks our build integration

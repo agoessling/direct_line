@@ -14,8 +14,8 @@ from unittest.mock import patch
 
 from tools.debug import process
 from tools.debug.elf import Elf
-from tools.debug.hil import evaluate, execute, junit, probe_lock
-from tools.debug.hil_types import BoardResult, Case, CaseResult, RunConfig, SelectedCase
+from tools.debug.hil import execute, junit, probe_lock
+from tools.debug.protocol import BoardResult, Case, CaseResult, RunConfig, SelectedCase, evaluate
 
 
 class ProtocolTest(unittest.TestCase):
@@ -182,7 +182,6 @@ class ReportTest(unittest.TestCase):
             elf = Elf(image([(0, 100, 0, b"case")]))
             with (
                 patch("tools.debug.hil.config_for_probe"),
-                patch("tools.debug.hil.program_image", return_value={}),
                 patch("tools.debug.hil.run_debugger", side_effect=timed_out),
                 patch.object(elf, "address", return_value=0x100),
             ):

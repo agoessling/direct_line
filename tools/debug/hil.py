@@ -10,6 +10,7 @@ import re
 import secrets
 import subprocess
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -21,8 +22,15 @@ from python.runfiles import runfiles
 
 from tools.debug import process
 from tools.debug.elf import Elf
-from tools.debug.hil_types import BoardResult, Case, CaseResult, RunConfig, RunResult, SelectedCase
-from tools.debug.transport import config_for_probe, program_image
+from tools.debug.protocol import (
+    BoardResult,
+    Case,
+    CaseResult,
+    RunConfig,
+    RunResult,
+    SelectedCase,
+    evaluate,
+)
 
 
 @dataclass
@@ -37,22 +45,10 @@ class Arguments(argparse.Namespace):
     output_dir: Path | None = None
 
 
-def words(value: object) -> list[int]:
-    """Decode unsigned target words from a debugger report."""
-    if not isinstance(value, list):
-        return []
-    result: list[int] = []
-    for word in cast(list[object], value):
-        if not isinstance(word, (int, float)) or not 0 <= word <= 0xFFFFFFFF or word != int(word):
-            return []
-        result.append(int(word))
-    return result
-
-
-def read_report(path: Path) -> tuple[list[dict[str, object]], str | None]:
+def read_report(path: Path) -> tuple[list[dict[str, object]], str | None, dict[str, str]]:
     """Validate the JSON container before interpreting individual case records."""
     if not path.exists():
-        return [], "Debugger did not write a report"
+        return [], "Debugger did not write a report", {}
     value = cast(object, json.loads(path.read_text()))
     if not isinstance(value, dict):
         raise ValueError("Invalid debugger report object")
@@ -66,45 +62,15 @@ def read_report(path: Path) -> tuple[list[dict[str, object]], str | None]:
             raise ValueError("Invalid debugger case object")
         observations.append(cast(dict[str, object], case))
     errors = [str(raw[key]) for key in ("error", "cleanup_error", "stop_error") if raw.get(key)]
-    return observations, "; ".join(errors) if errors else None
-
-
-def address_equal(actual: object, expected: int) -> bool:
-    """Compare instruction addresses with the Thumb bit cleared."""
-    return (
-        isinstance(actual, (int, float))
-        and 0 <= actual <= 0xFFFFFFFF
-        and actual == int(actual)
-        and int(actual) & ~1 == expected & ~1
-    )
-
-
-def evaluate(case: SelectedCase, observation: dict[str, object], done: int) -> str | None:
-    """Require a fresh matching result before interpreting any terminal state."""
-    if observation.get("error"):
-        return str(observation["error"])
-    result = words(observation.get("result"))
-    diagnostic = words(observation.get("diagnostic"))
-    if len(result) != 4 or result[:3] != [1, case["id"], case["token"]]:
-        return "Missing or stale case result"
-    if len(diagnostic) != 7 or diagnostic[0] != 0x444C5253:
-        return "Invalid boot diagnostic"
-    status, stage = result[3], diagnostic[1]
-    expected = case["expected"]
-    if expected == 0:
-        valid = (
-            status == 2
-            and stage == 2
-            and not observation.get("timed_out", True)
-            and address_equal(observation.get("pc"), done)
-        )
-    elif expected == 1:
-        valid = status == 1 and stage == 0xFFFF0002
-    elif expected == 2:
-        valid = status == 1 and stage == 0xFFFF0001 and diagnostic[2:5] == [6, 1 << 16, 0]
-    else:
-        valid = status == 1 and stage == 2 and observation.get("timed_out") is True
-    return None if valid else f"Unexpected terminal state: {observation}"
+    identity: dict[str, str] = {}
+    raw_identity = raw.get("identity", {})
+    if not isinstance(raw_identity, dict):
+        raise ValueError("Invalid debugger identity object")
+    for name, value in cast(dict[str, object], raw_identity).items():
+        if not isinstance(value, str):
+            raise ValueError("Invalid debugger identity value")
+        identity[name] = value
+    return observations, "; ".join(errors) if errors else None, identity
 
 
 @contextmanager
@@ -128,10 +94,31 @@ def run_debugger(args: RunConfig, request: Path | str, directory: Path, timeout:
         raise RuntimeError("Debugger process deadline exceeded") from error
 
 
+def config_for_probe(serial: str, destination: Path) -> None:
+    tree = ET.parse(Path(__file__).with_name("xds110_cc1354p10.ccxml"))
+    connection = tree.find(".//connection")
+    if connection is None:
+        raise ValueError("Probe template lacks a connection")
+    platform = connection.find("platform")
+    if platform is None:
+        raise ValueError("Probe template lacks a platform")
+    selection = ET.Element(
+        "property", {"Type": "choicelist", "Value": "1", "id": "Debug Probe Selection"}
+    )
+    choice = ET.SubElement(selection, "choice", {"Name": "Select by serial number", "value": "0"})
+    _ = ET.SubElement(
+        choice,
+        "property",
+        {"Type": "stringfield", "Value": serial, "id": "-- Enter the serial number"},
+    )
+    connection.insert(list(connection).index(platform), selection)
+    tree.write(destination, encoding="UTF-8", xml_declaration=True)
+
+
 def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> RunResult:
+    started = time.monotonic()
     config = directory / "probe.ccxml"
     config_for_probe(args.probe, config)
-    identity = program_image(args.dslite, args.elf, config, directory)
     selected: list[SelectedCase] = [
         {**case, "token": secrets.randbelow(0x7FFFFFFE) + 1} for case in cases
     ]
@@ -145,6 +132,7 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
             ("request", "HIL_REQUEST", 8),
             ("result", "HIL_RESULT", 16),
             ("diagnostic", "BOOT_DIAGNOSTIC", 28),
+            ("failure", "diagnostic_halt", None),
         ]
     }
     _ = request.write_text(
@@ -167,9 +155,9 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
         status = None
         process_error = str(error)
     try:
-        observed, report_error = read_report(report)
+        observed, report_error, identity = read_report(report)
     except ValueError as error:
-        observed, report_error = [], str(error)
+        observed, report_error, identity = [], str(error), {}
     results: list[CaseResult] = []
     for index, case in enumerate(selected):
         observation: dict[str, object] = (
@@ -180,6 +168,7 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
             {**case, "passed": case_error is None, "error": case_error, "observation": observation}
         )
     return RunResult(
+        duration_s=time.monotonic() - started,
         identity=identity,
         cases=results,
         process_exit_code=status,
@@ -335,6 +324,8 @@ def main() -> int:
         _ = (board_directory / "report.json").write_text(json.dumps(result, indent=2) + "\n")
         for case in result.get("cases", []):
             print(f"{probe} {'PASS' if case['passed'] else 'FAIL'} {case['name']}", flush=True)
+        if "duration_s" in result:
+            print(f"{probe} completed in {result['duration_s']:.2f}s", flush=True)
         summary_error = result.get("error") or result.get("debugger_error")
         if not summary_error:
             summary_error = next(

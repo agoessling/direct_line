@@ -9,7 +9,7 @@ from typing import cast
 from scripting import DebuggerScripting, ScriptingOptions, initScripting
 from scripting.generated_types.Scripting import DebugSession
 
-from tools.debug.hil_types import DebugRequest, SelectedCase
+from tools.debug.protocol import DebugRequest, SelectedCase, evaluate
 
 
 def read_words(session: DebugSession, address: int, count: int) -> list[int]:
@@ -70,10 +70,30 @@ def reset(session: DebugSession, result: dict[str, object]) -> None:
             time.sleep(0.1)
 
 
+def capture_details(session: DebugSession, result: dict[str, object]) -> None:
+    """Read expensive debugger context only when a case needs investigation."""
+    registers: dict[str, int | str] = {"PC": cast(int, result["pc"])}
+    for name in ("SP", "LR", "xPSR"):
+        try:
+            registers[name] = session.registers.read(name)
+        except Exception as error:
+            registers[name] = str(error)
+    result["registers"] = registers
+    try:
+        result["stack"] = session.callstack.fetch()
+    except Exception as error:
+        result["stack_error"] = str(error)
+
+
 def run_case(
     session: DebugSession, request: DebugRequest, case: SelectedCase, result: dict[str, object]
 ) -> None:
+    timings: dict[str, float] = {}
+    result["timings_s"] = timings
+    started = time.monotonic()
     reset(session, result)
+    timings["reset"] = time.monotonic() - started
+    started = time.monotonic()
     ready, done = request["ready"] & ~1, request["done"] & ~1
     hardware_breakpoint(session, ready)
     result["phase"] = "run to ready"
@@ -92,35 +112,51 @@ def run_case(
         raise RuntimeError("Request or diagnostic was not reinitialized by startup")
     if read_words(session, request["result"], 4) != [1, 0xFFFFFFFF, 0, 0]:
         raise RuntimeError("HIL result was not reinitialized by startup")
+    timings["ready"] = time.monotonic() - started
+    started = time.monotonic()
     result["phase"] = "select case"
     session.breakpoints.removeAll()
     session.memory.write(request["request"], [case["id"], case["token"]], 32)
     hardware_breakpoint(session, done)
+    hardware_breakpoint(session, request["failure"] & ~1)
     result["phase"] = "run case"
     session.target.run(False)
     completed = wait_halted(session, case["timeout_ms"])
     if not completed:
         session.target.halt()
+    timings["execution"] = time.monotonic() - started
+    started = time.monotonic()
     result["timed_out"] = not completed
     result["pc"] = int(session.registers.read("PC"))
     result["result"] = read_words(session, request["result"], 4)
     result["diagnostic"] = read_words(session, request["diagnostic"], 7)
-    registers: dict[str, int | str] = {}
-    for name in ("PC", "SP", "LR", "xPSR"):
-        try:
-            registers[name] = session.registers.read(name)
-        except Exception as error:
-            registers[name] = str(error)
-    result["registers"] = registers
-    try:
-        result["stack"] = session.callstack.fetch()
-    except Exception as error:
-        result["stack_error"] = str(error)
+    if case["expected"] in (1, 2) or evaluate(case, result, done) is not None:
+        capture_details(session, result)
+    timings["capture"] = time.monotonic() - started
+
+
+def program_image(session: DebugSession, image: str, report: dict[str, object]) -> None:
+    user = read_words(session, 0x50000A94, 1)[0]
+    icepick = read_words(session, 0x50000B18, 1)[0]
+    report["identity"] = {"user_id": f"0x{user:08x}", "icepick_id": f"0x{icepick:08x}"}
+    if (
+        (icepick >> 12) & 0xFFFF != 0xBB78
+        or (user >> 12) & 0xF != 0xF
+        or not user & (1 << 23)
+        or not user & (1 << 25)
+    ):
+        raise RuntimeError("Silicon IDs do not match the expected CC1354P10 target")
+    # Use the complete ELF, including CCFG; the TI loader owns flash programming.
+    session.memory.loadProgram(image)
+    session.target.halt()
+    session.memory.verifyProgram(image)
 
 
 def execute(ccs_root: Path, request: DebugRequest) -> int:
+    started = time.monotonic()
+    timings: dict[str, float] = {}
     results: list[dict[str, object]] = []
-    report: dict[str, object] = {"cases": results}
+    report: dict[str, object] = {"cases": results, "timings_s": timings}
     destination = Path(request["report"])
 
     def save() -> None:
@@ -142,7 +178,11 @@ def execute(ccs_root: Path, request: DebugRequest) -> int:
         session.settings.set("AutoRunToLabelOnReset", False)
         session.target.connect()
         session.target.halt()
-        session.symbols.load(request["elf"])
+        timings["connect"] = time.monotonic() - started
+        phase_started = time.monotonic()
+        program_image(session, request["elf"], report)
+        timings["identify_program_verify"] = time.monotonic() - phase_started
+        save()
         for case in request["cases"]:
             result: dict[str, object] = dict(case)
             results.append(result)
@@ -156,6 +196,7 @@ def execute(ccs_root: Path, request: DebugRequest) -> int:
                     result["result"] = read_words(session, request["result"], 4)
                     result["request"] = read_words(session, request["request"], 2)
                     result["pc"] = int(session.registers.read("PC"))
+                    capture_details(session, result)
                 except Exception as capture_error:
                     result["capture_error"] = str(capture_error)
                 status = 1
@@ -166,6 +207,7 @@ def execute(ccs_root: Path, request: DebugRequest) -> int:
         report["error"] = str(error)
         status = 1
     finally:
+        cleanup_started = time.monotonic()
         if session is not None:
             try:
                 session.target.halt()
@@ -180,6 +222,8 @@ def execute(ccs_root: Path, request: DebugRequest) -> int:
             except Exception as error:
                 report["stop_error"] = str(error)
                 status = 1
+        timings["cleanup"] = time.monotonic() - cleanup_started
+        timings["total"] = time.monotonic() - started
         save()
     return status
 

@@ -281,10 +281,7 @@ unsafe extern "C" fn capture_fault(exception: u32) -> ! {
         (&raw mut (*fault).bfar).write_volatile(r::CPU_SCB.bfar.read().bits());
         // Mark the terminal stage after writing its payload; the record is not atomic.
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_FAULT);
-        // Park for inspection. WFI may wake, so loop rather than resuming the application.
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        diagnostic_halt()
     }
 }
 
@@ -318,9 +315,18 @@ fn panic(info: &PanicInfo<'_>) -> ! {
         (&raw mut (*panic).filename_length).write_volatile(details.filename_length);
         (&raw mut (*panic).reserved).write_volatile(0);
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_PANIC);
-        // Leave the record intact for JTAG; no unwind or reset.
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        diagnostic_halt()
+    }
+}
+
+/// Debugger stop after fault or panic diagnostics are complete; no unwind or reset.
+#[unsafe(no_mangle)]
+#[inline(never)]
+extern "C" fn diagnostic_halt() -> ! {
+    // SAFETY: terminal failure. The NOP gives this stop a distinct instruction sequence.
+    unsafe { asm!("nop", options(nomem, nostack, preserves_flags)) };
+    loop {
+        // SAFETY: park for inspection; WFI may wake, so never resume the application.
+        unsafe { asm!("wfi", options(nomem, nostack)) };
     }
 }

@@ -8,7 +8,7 @@ py_binary(
     name = "ccs_script",
     srcs = [
         "ccs_script.py",
-        "hil_types.py",
+        "protocol.py",
     ],
     main = "ccs_script.py",
     deps = ["@ti_debug_tools//:scripting"],
@@ -23,9 +23,8 @@ m33_artifact(
 _SOURCES = [
     "elf.py",
     "hil.py",
-    "hil_types.py",
+    "protocol.py",
     "process.py",
-    "transport.py",
 ]
 
 py_binary(
@@ -66,10 +65,23 @@ py_test(
     ],
 )
 
+py_test(
+    name = "ccs_script_test",
+    size = "small",
+    srcs = [
+        "ccs_script.py",
+        "ccs_script_test.py",
+        "protocol.py",
+    ],
+    main = "ccs_script_test.py",
+    deps = ["@ti_debug_tools//:scripting"],
+)
+
 python_checks(
     name = "python",
     srcs = _SOURCES + [
         "ccs_script.py",
+        "ccs_script_test.py",
         "hil_test.py",
     ],
 )
