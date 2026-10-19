@@ -2,5 +2,3 @@
 --only-binary=:all:
 pyelftools==0.33 \
     --hash=sha256:f215ad5f47d3f1373a21496a6c9e0707c622840d0622f23ff7ce08678b020036
-websockets==15.0.1 \
-    --hash=sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f

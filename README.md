@@ -7,7 +7,7 @@ required for the initial milestones.
 
 The standalone image initializes memory, factory trim, clocks, GPIO, timers, and polling UART0
 at 115200 8N1. It reports bring-up checks over serial, then echoes received bytes while blinking
-both LEDs on timer events. A single-image hardware test suite runs through the XDS110 debugger;
+both LEDs on timer events. An embedded-test suite runs through probe-rs and the XDS110 debugger;
 logging and RF remain later milestones.
 Required silicon initialization uses the pinned TI SDK behind one Rust FFI call; see the
 [startup audit](firmware/STARTUP.md). The earlier C++ firmware remains in history.

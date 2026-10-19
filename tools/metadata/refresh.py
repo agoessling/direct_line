@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import NotRequired, TypedDict, cast
 
 import elftools
-import scripting
-import websockets
 from python.runfiles import runfiles
 
 
@@ -120,8 +118,6 @@ def main() -> None:
     metadata["python_search_paths"] = [
         str(Path(runfiles.__file__).resolve().parents[2]),
         str(Path(elftools.__file__).resolve().parent.parent),
-        str(Path(scripting.__file__).resolve().parent.parent),
-        str(Path(websockets.__file__).resolve().parent.parent),
     ]
     destination = root / ".tools" / "project.json"
     destination.parent.mkdir(exist_ok=True)

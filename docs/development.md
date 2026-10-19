@@ -7,8 +7,9 @@ are recorded in `MODULE.bazel`, `MODULE.bazel.lock`, and `.bazelversion`.
 A separate rustup installation is unnecessary.
 
 Hardware execution is an explicit `bazel run //tools/debug:hil -- --probe SERIAL` operation.
-The runner builds its Cortex-M33 suite through the existing platform transition, programs it once,
-and resets between cases. See [hardware tests](hardware_tests.md) for test selection, debugger
+The runner builds its Cortex-M33 embedded-test suite through the existing platform transition,
+verifies or programs it through probe-rs, and resets between cases. See
+[hardware tests](hardware_tests.md) for test selection, debugger
 dependencies, and the distinction between reset tests and physical power-on validation.
 
 ## Build and checks

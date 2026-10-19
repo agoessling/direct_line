@@ -107,11 +107,7 @@ sysconfig_repository = use_repo_rule("//third_party/ti:repositories.bzl", "sysco
 
 sysconfig_repository(name = "ti_sysconfig")
 
-ti_debug_tools = use_repo_rule("//tools/debug:ti_tools.bzl", "ti_debug_tools")
-
-ti_debug_tools(name = "ti_debug_tools")
-
-# Optional debugger experiments; the production HIL runner uses TI tools.
+# Pinned Linux debugger for explicit hardware tests.
 http_archive(
     name = "probe_rs",
     build_file_content = 'exports_files(["probe-rs"])',
@@ -120,7 +116,11 @@ http_archive(
     url = "https://github.com/probe-rs/probe-rs/releases/download/v0.32.0/probe-rs-tools-x86_64-unknown-linux-gnu.tar.xz",
 )
 
-# Firmware-only dependencies for the optional annotated-test experiment.
+probe_rs_targets = use_repo_rule("//third_party/probe_rs:repositories.bzl", "probe_rs_targets")
+
+probe_rs_targets(name = "probe_rs_targets")
+
+# Firmware test framework and its host procedural macros.
 embedded_test_crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 embedded_test_crate.from_cargo(
     name = "embedded_test_crates",

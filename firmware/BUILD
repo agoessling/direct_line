@@ -105,34 +105,6 @@ python_checks(
     srcs = ["ccfg_test.py"],
 )
 
-# All cases share one image; the host resets before selecting each case.
-rust_binary(
-    name = "hil_test",
-    srcs = _DEVICE_SOURCES + [
-        "board_test.rs",
-        "clock_test.rs",
-        "gpio_test.rs",
-        "hil_registry.rs",
-        "hil_test.rs",
-        "timer_test.rs",
-        "uart_test.rs",
-    ],
-    crate_root = "hil_test.rs",
-    link_deps = [
-        ":ti_rom",
-        "//firmware/config:ccfg",
-        "@ti_sdk//:setup",
-    ],
-    linker_script = "memory.ld",
-    rustc_flags = ["-Cdebuginfo=2"],
-    target_compatible_with = [
-        "@platforms//cpu:armv8-m",
-        "@platforms//os:none",
-    ],
-    visibility = ["//tools/debug:__pkg__"],
-    deps = [":registers"],
-)
-
 # Keep the upstream metadata linker fragment alongside the board's existing memory layout.
 genrule(
     name = "embedded_test_linker",
@@ -145,17 +117,16 @@ genrule(
 )
 
 rust_binary(
-    name = "embedded_test",
+    name = "hil_test",
     srcs = _DEVICE_SOURCES + [
         "board_test.rs",
         "clock_test.rs",
-        "embedded_test.rs",
         "gpio_test.rs",
+        "hil_test.rs",
         "timer_test.rs",
         "uart_test.rs",
     ],
-    crate_name = "embedded_test_image",
-    crate_root = "embedded_test.rs",
+    crate_root = "hil_test.rs",
     link_deps = [
         ":ti_rom",
         "//firmware/config:ccfg",
@@ -164,13 +135,13 @@ rust_binary(
     linker_script = ":embedded_test_linker",
     rustc_flags = [
         "-Cdebuginfo=2",
-        "--cfg=embedded_test",
+        "--cfg=hil_test",
     ],
     target_compatible_with = [
         "@platforms//cpu:armv8-m",
         "@platforms//os:none",
     ],
-    visibility = ["//tools/debug/experiments:__pkg__"],
+    visibility = ["//tools/debug:__pkg__"],
     deps = [
         ":registers",
         "@embedded_test_crates//:embedded-test",

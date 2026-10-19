@@ -6,8 +6,6 @@ import sys
 from pathlib import Path
 
 import elftools
-import scripting
-import websockets
 from python.runfiles import runfiles
 
 
@@ -29,8 +27,6 @@ def main() -> int:
         [
             str(Path(runfiles.__file__).parents[2]),
             str(Path(elftools.__file__).parent.parent),
-            str(Path(scripting.__file__).parent.parent),
-            str(Path(websockets.__file__).parent.parent),
         ]
     )
     workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY")

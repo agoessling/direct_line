@@ -225,14 +225,18 @@ The linker exposes the full 1 MiB of flash; reset establishes all-secure CPU
 attribution. A bring-up image verified execution and a literal read in the final
 16 bytes on both boards. That image was removed after verification; its source
 remains in Git history and results in `firmware/STARTUP.md`.
-A minimal custom HIL runner uses pinned TI UniFlash/CCS Scripting and explicit XDS110 selection.
-Python 3.14 runs TI's typed API; CloudAgent/Node come from the same UniFlash package.
-`bazel run //tools/debug:hil -- --check-runtime` checks this runtime without accessing a board.
-Hardware runs identify, flash, verify, and execute one suite in a single CCS session, resetting between
-cases. Routine checks use one explicit board; use two for RF or occasional board/setup comparisons.
-Panic/fault cases wait for their deadline before the debugger halts and reads diagnostics. Full context
-is captured only for unexpected outcomes or intentional panic/fault cases. Reports include host-side
-phase timings.
+The production HIL runner uses pinned embedded-test 0.7.0 and probe-rs 0.32.0 through the onboard
+XDS110 CMSIS-DAP interface. One explicit probe and one process execute each invocation, with full
+system reset before every case. Routine checks use one board; use two for RF or occasional comparisons.
+Preverification compares loadable flash bytes, including CCFG, before deciding whether to program;
+every selected test still resets and runs. `--force-flash` exercises programming unconditionally.
+The firmware preserves boot/fault diagnostics; its test-only panic path reports through semihosting.
+UsageFault currently fails as a timeout, with a stack trace; automatic diagnostic decoding is not
+implemented. The wrapper requires a completed, nonempty passing suite and records errors in JSON.
+The custom CCS runner and its UniFlash dependency were removed; Git commit `75e1aab` preserves the
+comparison implementation. TI SDK setup and SysConfig remain firmware build dependencies.
+The HIL command supplies a pinned target description with CC1354P10 SRAM corrected to 256 KiB;
+`third_party/probe_rs/README.md` explains the temporary upstream correction.
 Event logging and RF remain subsequent milestones; UART electrical and external baud validation
 remain separate from the suite's internal loopback checks.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
@@ -252,16 +256,19 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 - Arm GNU 13.2.Rel1 compiles only embedded C and links firmware without a C runtime.
   A pinned standalone clang-format 19 binary formats owned C sources; do not restore
   the old custom wheel-download rule. Metadata refresh exports compile_commands.json.
-- Hardware tests: `bazel run //tools/debug:hil -- --probe SERIAL`; add `--filter 'clock/*'` to
-  select cases or use `--list` without hardware. Multiple `--probe` options run boards sequentially.
-- `//firmware:hil_test` combines both clock variants, GPIO, four GPT assignments, four UART
-  instances, and board bring-up. Dedicated pass/panic/UsageFault/timeout cases check the harness.
-  The runner validates fresh request/result state and execution tokens on every reset, captures
-  diagnostics, writes JSON reports, and fails on unexpected outcomes or debugger errors.
-- Register HIL cases once with `hil_tests!` in `firmware/hil_test.rs`; the macro in
-  `firmware/hil_registry.rs` generates metadata, IDs/counts, and function dispatch. Named suites
-  (`harness`, `drivers`, `integration`, `smoke`) select cases from the same image through `--suite`.
-  Repeated suites form a union; `--filter` narrows it. No suite option runs all cases.
+- Hardware tests: `bazel run //tools/debug:hil -- --probe SERIAL`; add `--filter 'clock::'` for one
+  name substring. `--list` requires a probe and also verifies/programs the image. Run boards separately.
+- `//firmware:hil_test` contains fourteen normal cases: both clock variants, GPIO, four GPT
+  assignments, four UART instances, board bring-up, normal return, and expected panic. Four ignored
+  controls deliberately fail: unexpected panic, missing panic, UsageFault, and timeout. Run each
+  separately with `--ignored --filter harness::NAME`; expect a nonzero exit.
+- Register cases beside their implementations in `firmware/*_test.rs`, inside inline modules marked
+  `#[embedded_test::tests]`. The framework generates metadata and dispatch; there is no central list.
+  Global setup and harness controls live in `firmware/hil_test.rs`. Keep fresh-RAM validation before
+  the host handshake so setup failures cannot satisfy expected-panic tests.
+- `//tools/debug:probe_rs` exposes the pinned CLI for explicit debugger operations. Host CI builds
+  the HIL runner and checks the CLI version without accessing hardware. Editor metadata and strict
+  Python checks no longer require TI's debugger runtime.
 - See `docs/hardware_tests.md` for current validation status and measurement limits. Historical
   clock/full-flash evidence and the separate physical-power-cycle status remain in `firmware/STARTUP.md`.
 - TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
@@ -274,35 +281,20 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 When commits are requested, keep messages concise, with at most four body
 sentences. Do not add coauthor or coding-agent attribution.
 
-## Post-rebase tasks
+## Validation and follow-up
 
-- On 2026-10-17, the macro-generated HIL registry passed all 16 cases and a separate three-case
-  `smoke` selection on `LS4500Q0`, with no reset retries. Linked-image discovery and suite selection
-  are covered by host tests; all 18 Bazel test targets and host/embedded lint/build checks passed.
-- The initial embedded-test framework is implemented. On 2026-10-12, all 16 cases passed freshly on
-  both boards through one runner invocation, with no reset/reconnect retries. Strict Python checks,
-  host tests, formatting/lint, and embedded builds passed. Keep physical power-on, external pin/baud
-  accuracy, and future performance measurements separate from debugger-reset functional tests.
-  See `docs/hardware_tests.md`.
-- On 2026-10-13, single-board HIL optimization reduced measured runtime from about 48.5 seconds
-  to 39.1 seconds on LS4500Q0. All 16 cases passed without reset retries; 18 Bazel test targets and
-  host/embedded lint/build checks passed. The experimental panic/fault terminal breakpoint was removed
-  to keep startup simpler. See `docs/hardware_tests.md`; host phase timings do not measure MCU latency.
-- On 2026-10-18, replacing CCS Board Reset with the already-pinned `xds110reset` 50 ms pin pulse
-  reduced the 16-case suite on `LS4500Q0` from 39.54 to 28.26 seconds, without reset retries. Keep
-  explicit probe selection, CPU/DAP/ICEPick disconnects, parent-first reconnects, and fresh-state
-  validation. CCS remains the production runner. See `docs/hardware_tests.md`.
-- Optional debugger experiments live in `tools/debug/experiments/`, with detailed CCS reset timing
-  instrumentation in the worker. Probe-rs 0.32.0 attached through the XDS110 CMSIS-DAP interface and
-  passed reset/halt, memory-read, and breakpoint preflight on `LS4500Q0`. The subsequent annotated
-  `embedded-test` experiment programs/verifies main flash and CCFG and runs the same twelve driver
-  checks, plus normal return and expected panic. Separate ignored controls validate failures.
-  CCS remains the production runner; see `docs/embedded_test_experiment.md` for measurements and
-  differences in fault reporting. Run `bazel run //tools/debug/experiments:embedded_test -- --probe SERIAL`
-  explicitly; `--filter driver_` selects the comparable driver suite, and `--list` also accesses hardware.
-  On 2026-10-18, those twelve checks took 21.70–21.73 s through CCS versus 9.76–9.91 s through
-  probe-rs with programming, or 6.45–6.65 s with unchanged flash verified first. Every test still
-  resets and runs; `--force-flash` exercises programming. Empty selections fail the wrapper.
+- The production migration passed all fourteen normal cases freshly on `LS4500Q0`, with forced
+  programming and preverified unchanged flash. All four negative controls failed as intended,
+  an unmatched filter failed, and the suite passed again after the terminal cases. The corrected
+  target description was used throughout; the last SRAM word at `0x2003fffc` was readable.
+  All seventeen host test/check targets, host and embedded lint/build checks, and editor metadata
+  refresh passed.
+- The 2026-10-18 prototype passed all fourteen normal cases repeatedly on `LS4500Q0`, verified main
+  flash and CCFG programming, and rejected all four negative controls plus an unmatched filter.
+  The same twelve driver checks took 21.70–21.73 s through CCS, 9.76–9.91 s through probe-rs with
+  programming, and 6.45–6.65 s with unchanged flash verified first. See `docs/hardware_tests.md`.
+- Keep physical power-on, external pin/baud accuracy, sleep recovery, and MCU latency measurements
+  separate from debugger-reset functional tests. Host process timings do not measure MCU latency.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.

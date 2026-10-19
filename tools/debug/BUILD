@@ -1,17 +1,18 @@
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("//tools/platforms:artifact.bzl", "m33_artifact")
 load("//tools/quality:checks.bzl", "python_checks")
 
-exports_files(["xds110_cc1354p10.ccxml"])
+_HOST = [
+    "@platforms//os:linux",
+    "@platforms//cpu:x86_64",
+]
 
-py_binary(
-    name = "ccs_script",
-    srcs = [
-        "ccs_script.py",
-        "protocol.py",
-    ],
-    main = "ccs_script.py",
-    deps = ["@ti_debug_tools//:scripting"],
+native_binary(
+    name = "probe_rs",
+    src = "@probe_rs//:probe-rs",
+    tags = ["manual"],
+    target_compatible_with = _HOST,
 )
 
 m33_artifact(
@@ -21,69 +22,37 @@ m33_artifact(
 )
 
 _SOURCES = [
-    "elf.py",
     "hil.py",
-    "protocol.py",
-    "process.py",
+    "probe_lock.py",
 ]
 
 py_binary(
     name = "hil",
     srcs = _SOURCES,
     data = [
-        "xds110_cc1354p10.ccxml",
-        ":ccs_script",
         ":hil_image",
-        "@ti_debug_tools//:dslite",
-        "@ti_debug_tools//:runtime",
+        "@probe_rs//:probe-rs",
+        "@probe_rs_targets//:cc1354p10.yaml",
     ],
     env = {
-        "DIRECT_LINE_DSLITE": "$(rlocationpath @ti_debug_tools//:dslite)",
+        "PROBE_RS": "$(rlocationpath @probe_rs//:probe-rs)",
         "DIRECT_LINE_ELF": "$(rlocationpath :hil_image)",
-        "DIRECT_LINE_CCS_WORKER": "$(rlocationpath :ccs_script)",
+        "DIRECT_LINE_TARGET": "$(rlocationpath @probe_rs_targets//:cc1354p10.yaml)",
     },
     main = "hil.py",
     tags = ["manual"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    deps = [
-        "@python_deps//pyelftools",
-        "@rules_python//python/runfiles",
-    ],
+    target_compatible_with = _HOST,
+    deps = ["@rules_python//python/runfiles"],
 )
 
 py_test(
     name = "hil_test",
     size = "small",
     srcs = _SOURCES + ["hil_test.py"],
-    data = [":hil_image"],
-    env = {"DIRECT_LINE_TEST_ELF": "$(rlocationpath :hil_image)"},
-    main = "hil_test.py",
-    deps = [
-        "@python_deps//pyelftools",
-        "@rules_python//python/runfiles",
-    ],
-)
-
-py_test(
-    name = "ccs_script_test",
-    size = "small",
-    srcs = [
-        "ccs_script.py",
-        "ccs_script_test.py",
-        "protocol.py",
-    ],
-    main = "ccs_script_test.py",
-    deps = ["@ti_debug_tools//:scripting"],
+    deps = ["@rules_python//python/runfiles"],
 )
 
 python_checks(
     name = "python",
-    srcs = _SOURCES + [
-        "ccs_script.py",
-        "ccs_script_test.py",
-        "hil_test.py",
-    ],
+    srcs = _SOURCES + ["hil_test.py"],
 )

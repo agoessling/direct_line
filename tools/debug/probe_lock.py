@@ -1,4 +1,4 @@
-"""Use the production runner's lock convention for experimental probe access."""
+"""Serialize access to each explicitly selected hardware probe."""
 
 import fcntl
 import os

@@ -20,7 +20,6 @@ py_binary(
     deps = [
         "@python_deps//pyelftools",
         "@rules_python//python/runfiles",
-        "@ti_debug_tools//:scripting",
     ],
 )
 

@@ -130,8 +130,9 @@ undefined-instruction fault (exception 6, CFSR `0x10000`) and a deliberate panic
 Field-by-field volatile writes keep the fault handler at 60 bytes of code with
 no temporary payload stack copy under the pinned optimized toolchain.
 
-Both panic and fault stop with interrupts masked. Reserved and unused interrupt
-vectors also take this diagnostic path. No dynamic vector replacement is exposed.
+Both panic and fault mask interrupts. In the standalone application they stop; the HIL image
+reports panic through semihosting after recording its diagnostic. Faults always retain the terminal
+diagnostic path, as do reserved and unused interrupt vectors. No dynamic vector replacement is exposed.
 
 ## TI startup boundary
 
@@ -256,14 +257,14 @@ power-on behavior or electrical timing. Keep raw hardware results outside source
 
 ### GPIO board test
 
-Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'gpio/*'`. This case checks both LED pin
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'gpio::'`. This case checks both LED pin
 configurations, output enables, global retention release, and initial low levels. It exercises
 set/clear and toggle operations across all four LED states, verifies unrelated output latches are
 preserved, and uses multiple shared references to the same output. It also checks that `OutputPin`
 implements `Sync`. The checks are sequential; they do not exercise interrupt interleavings or measure
 electrical pad levels or timing.
 
-The common runner checks completion and captures panic/fault diagnostics. See
+The common runner checks completion; panic/fault records remain available in `BOOT_DIAGNOSTIC`. See
 [hardware tests](../docs/hardware_tests.md) for execution and current validation status.
 
 ## Polling UART
@@ -306,15 +307,15 @@ testing of this replayed implementation remains separate from the internal loopb
 
 ### UART instance tests
 
-Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'uart/*'`. Each case selects
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'uart::'`. Each case selects
 one UART on DIO12/13, at 9600, 115200, 1,000,000, or 3,000,000 baud respectively. The checks cover
 clock gating, power selection, pin routing, fixed 8N1/FIFO settings, divisor values, invalid requests
 leaving configuration unchanged, zero-timeout behavior, and all 256 byte values through internal
 loopback. Each case owns initialization directly and requires no external loopback wire.
 
-The runner checks completion and captures faults/panics through `BOOT_DIAGNOSTIC`. Internal loopback
-does not measure physical pin behavior or absolute baud accuracy; external serial tests remain
-separate work. Current execution evidence is recorded in [hardware tests](../docs/hardware_tests.md).
+The runner checks completion; faults/panics retain `BOOT_DIAGNOSTIC` for debugger inspection.
+Internal loopback does not measure physical pin behavior or absolute baud accuracy; external serial
+tests remain separate work. Current execution evidence is recorded in [hardware tests](../docs/hardware_tests.md).
 
 ## Timers and interrupt bring-up
 
@@ -349,11 +350,11 @@ from a one-shot. It then blinks on nominal 500 ms periodic events. Inspect `TIME
 through the debugger: 0 is before checks, 1 is in progress, and 2 means all timer assertions passed.
 Also require boot stage 2, clear fault status, and increasing `BLINK_COUNT`. Panic/fault details
 remain in `BOOT_DIAGNOSTIC`. These checks share the timer clock and do not establish absolute
-accuracy. The `board/bringup` HIL case also exercises these checks with automatic result collection.
+accuracy. The board bring-up HIL case also exercises these checks with automatic result collection.
 
 ### GPT assignment and isolation tests
 
-Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'timer/*'`. Each case uses
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'timer::'`. Each case uses
 the named GPT as counter and the other three as concurrent interrupt timers. They check progress
 from every source, invalid requests preserving an active timer, stopping one without stopping the
 others, one-shot rearming, and absence of interrupts after stopping all three. The test image owns
@@ -376,15 +377,15 @@ ignored `.results/timer-instances/`.
 
 ## Clock board tests
 
-Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'clock/*'`. These cases use production startup and
-CCFG. Both verify the initial RCOSC state, LF selection and loss detection,
+Run `bazel run //tools/debug:hil -- --probe SERIAL --filter 'clock::'`. These cases use production
+startup and CCFG. Both verify the initial RCOSC state, LF selection and loss detection,
 RTC increment/epoch/progress, rejection of switching before a request, successful
 HF switching, DC/DC automatic-clock restoration and repeated-call behavior.
 The first starts the ROM switch with interrupts enabled; the second starts with
 PRIMASK set. Both require the previous mask to be preserved.
 
-The common runner verifies completion and boot/fault state after every case. Initial RTC seconds
-are sampled before the host's selection breakpoint, because the RTC advances during debugger halts.
+The common runner verifies completion. Initial RTC seconds are sampled by global setup before
+the framework handshake, because the RTC advances during debugger halts.
 These tests do not measure absolute crystal accuracy or deliberately stop a crystal to test recovery.
 The older individual-image observations below are historical; current suite results are recorded in
 [hardware tests](../docs/hardware_tests.md).
@@ -463,7 +464,7 @@ During the paused rebase, runners came from an isolated checkout of `master`
 Its read-only expression parser was extended to allow diagnostic struct members.
 Raw manifests, ELF hashes, and debugger reports are outside the source checkout
 in `/home/agoessling/direct_line_results/ti-integration`; they are not committed.
-The debugger tooling commit will reintroduce these runners in the current branch.
+Those historical runners remain available in Git history; the current suite uses probe-rs.
 
 Host tests and both lint/build configurations passed. ELF inspection found no
 undefined symbols and retained DWARF; the LED image has 10,880 bytes of text/rodata,
