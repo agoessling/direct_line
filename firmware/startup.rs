@@ -320,7 +320,12 @@ fn panic(info: &PanicInfo<'_>) -> ! {
         (&raw mut (*panic).filename_length).write_volatile(details.filename_length);
         (&raw mut (*panic).reserved).write_volatile(0);
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_PANIC);
+        // The optional embedded-test image reports panic completion through semihosting.
+        #[cfg(embedded_test)]
+        embedded_test::export::hosting::abort();
+
         // Leave the record intact for JTAG; no unwind or reset.
+        #[cfg(not(embedded_test))]
         loop {
             asm!("wfi", options(nomem, nostack));
         }

@@ -179,3 +179,5 @@ bazel run //tools/debug:hil -- --probe LS4500Q0
 
 Detailed reset measurements and the optional probe-rs benchmark are documented in
 [Debugger timing experiments](debugger_experiments.md).
+An optional [embedded-test/probe-rs prototype](embedded_test_experiment.md) compares the same driver
+checks with annotated registration and an upstream runner.

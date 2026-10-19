@@ -10,15 +10,14 @@ import select
 import signal
 import statistics
 import struct
-import tempfile
 import termios
 import time
-from collections.abc import Generator
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from python.runfiles import runfiles
+
+from tools.debug.experiments.probe_lock import probe_lock
 
 
 @dataclass
@@ -33,15 +32,6 @@ class Measurement:
     duration_s: float
     exit_code: int
     transcript: str
-
-
-@contextmanager
-def probe_lock(serial: str) -> Generator[None]:
-    directory = Path(tempfile.gettempdir()) / f"direct-line-probes-{os.getuid()}"
-    directory.mkdir(mode=0o700, exist_ok=True)
-    with (directory / serial).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
 
 
 def measure(command: list[str], resets: int, transcript: Path) -> Measurement:

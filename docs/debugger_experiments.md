@@ -1,5 +1,8 @@
 # Debugger timing experiments
 
+The subsequent [embedded-test experiment](embedded_test_experiment.md) verifies flashing and runs
+the shared driver checks through probe-rs. The preflight limitations below describe the earlier stage.
+
 ## CCS measurements
 
 The runner prints each board's elapsed time and stores `run.duration_s` in the board report. The worker's

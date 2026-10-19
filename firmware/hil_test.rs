@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 //! One case per reset. The host selects a case at hil_ready and observes completion at hil_done.
+mod board_test;
 mod clock;
 mod clock_test;
 mod ddi;
@@ -24,10 +25,7 @@ mod uart_test;
 use clock::Clocks;
 use core::arch::asm;
 use core::sync::atomic::{AtomicU32, Ordering};
-use device::Board;
 use hil_registry::{TestContext, hil_tests};
-use poll::wait_for;
-use timer::{GPT_CLOCK_HZ, ticks_from_us};
 
 // Shared debugger ABI; keep values in sync with tools/debug/protocol.py.
 const PROTOCOL_VERSION: u32 = 1;
@@ -121,7 +119,7 @@ hil_tests! {
         timeout_ms: 3000,
     },
     "board/bringup" => {
-        run: |_| bringup(),
+        run: |_| board_test::run(),
         suites: [integration, smoke],
         timeout_ms: 3000,
     },
@@ -234,35 +232,4 @@ fn intentional_fault() -> ! {
         interrupts::enable();
         asm!("udf #0", options(noreturn));
     }
-}
-
-fn bringup() {
-    let mut board = Board::take().unwrap();
-    assert!(Board::take().is_none());
-    board.clocks.request_hf_crystal();
-    wait_for(2_000_000, || board.clocks.try_switch_to_hf_crystal());
-    board.timer.start_periodic_us(1000).unwrap();
-    let start = board.counter.now();
-    wait_for(48_000_000, || {
-        assert!(board.counter.elapsed_since(start) < GPT_CLOCK_HZ);
-        board.timer.interrupts() >= 20
-    });
-    board.timer.stop();
-    let stopped = board.timer.interrupts();
-    let start = board.counter.now();
-    let ten_ms = ticks_from_us(10_000).unwrap();
-    wait_for(1_000_000, || board.counter.elapsed_since(start) >= ten_ms);
-    assert_eq!(board.timer.interrupts(), stopped);
-    assert!(board.timer.start_periodic_us(0).is_err());
-    assert!(board.timer.start_periodic_us(u32::MAX).is_err());
-    board.timer.start_once_us(1000).unwrap();
-    let start = board.counter.now();
-    wait_for(1_000_000, || board.counter.elapsed_since(start) >= ten_ms);
-    assert_eq!(board.timer.interrupts(), stopped.wrapping_add(1));
-    board.timer.stop();
-    // Enqueueing exercises the board's transport wiring; physical serial checks are host-side.
-    board
-        .uart
-        .write_timeout(b"RESULT PASS bringup\r\n", &board.counter, GPT_CLOCK_HZ)
-        .unwrap();
 }

@@ -1,0 +1,11 @@
+[package]
+name = "direct-line-embedded-test-dependencies"
+version = "0.0.0"
+edition = "2024"
+
+[lib]
+path = "unused.rs"
+
+[dependencies]
+embedded-test = { version = "=0.7.0", default-features = false, features = ["semihosting"] }
+embedded-test-linker-script = "=0.1.0"

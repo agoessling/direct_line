@@ -294,9 +294,15 @@ sentences. Do not add coauthor or coding-agent attribution.
   validation. CCS remains the production runner. See `docs/hardware_tests.md`.
 - Optional debugger experiments live in `tools/debug/experiments/`, with detailed CCS reset timing
   instrumentation in the worker. Probe-rs 0.32.0 attached through the XDS110 CMSIS-DAP interface and
-  passed reset/halt, memory-read, and breakpoint preflight on `LS4500Q0`; flashing and a complete HIL
-  run remain unverified. These experiments are separate from the production runner; see
-  `docs/debugger_experiments.md`.
+  passed reset/halt, memory-read, and breakpoint preflight on `LS4500Q0`. The subsequent annotated
+  `embedded-test` experiment programs/verifies main flash and CCFG and runs the same twelve driver
+  checks, plus normal return and expected panic. Separate ignored controls validate failures.
+  CCS remains the production runner; see `docs/embedded_test_experiment.md` for measurements and
+  differences in fault reporting. Run `bazel run //tools/debug/experiments:embedded_test -- --probe SERIAL`
+  explicitly; `--filter driver_` selects the comparable driver suite, and `--list` also accesses hardware.
+  On 2026-10-18, those twelve checks took 21.70–21.73 s through CCS versus 9.76–9.91 s through
+  probe-rs with programming, or 6.45–6.65 s with unchanged flash verified first. Every test still
+  resets and runs; `--force-flash` exercises programming. Empty selections fail the wrapper.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.
