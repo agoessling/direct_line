@@ -292,6 +292,11 @@ sentences. Do not add coauthor or coding-agent attribution.
   reduced the 16-case suite on `LS4500Q0` from 39.54 to 28.26 seconds, without reset retries. Keep
   explicit probe selection, CPU/DAP/ICEPick disconnects, parent-first reconnects, and fresh-state
   validation. CCS remains the production runner. See `docs/hardware_tests.md`.
+- Optional debugger experiments live in `tools/debug/experiments/`, with detailed CCS reset timing
+  instrumentation in the worker. Probe-rs 0.32.0 attached through the XDS110 CMSIS-DAP interface and
+  passed reset/halt, memory-read, and breakpoint preflight on `LS4500Q0`; flashing and a complete HIL
+  run remain unverified. These experiments are separate from the production runner; see
+  `docs/debugger_experiments.md`.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.

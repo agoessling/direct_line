@@ -176,3 +176,6 @@ Reproduce a fresh measurement with:
 ```sh
 bazel run //tools/debug:hil -- --probe LS4500Q0
 ```
+
+Detailed reset measurements and the optional probe-rs benchmark are documented in
+[Debugger timing experiments](debugger_experiments.md).

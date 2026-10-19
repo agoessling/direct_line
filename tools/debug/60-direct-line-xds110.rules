@@ -1,8 +1,10 @@
-# The project's two XDS110 probes and their UART interfaces.
+# The project's two XDS110 probes, CMSIS-DAP HID interfaces, and UART interfaces.
 # Members of plugdev can use these devices, including from a background session.
 # uaccess also grants access to the active local desktop user.
 SUBSYSTEM=="usb", ATTR{idVendor}=="0451", ATTR{idProduct}=="bef3", ATTR{serial}=="LS4500Q0", MODE="0660", GROUP="plugdev", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTR{idVendor}=="0451", ATTR{idProduct}=="bef3", ATTR{serial}=="LS4500IY", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0451", ATTRS{idProduct}=="bef3", ATTRS{serial}=="LS4500Q0", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0451", ATTRS{idProduct}=="bef3", ATTRS{serial}=="LS4500IY", MODE="0660", GROUP="plugdev", TAG+="uaccess"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0451", ATTRS{idProduct}=="bef3", ATTRS{serial}=="LS4500Q0", MODE="0660", GROUP="plugdev", TAG+="uaccess"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0451", ATTRS{idProduct}=="bef3", ATTRS{serial}=="LS4500IY", MODE="0660", GROUP="plugdev", TAG+="uaccess"
 

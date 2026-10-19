@@ -110,3 +110,12 @@ sysconfig_repository(name = "ti_sysconfig")
 ti_debug_tools = use_repo_rule("//tools/debug:ti_tools.bzl", "ti_debug_tools")
 
 ti_debug_tools(name = "ti_debug_tools")
+
+# Optional debugger experiments; the production HIL runner uses TI tools.
+http_archive(
+    name = "probe_rs",
+    build_file_content = 'exports_files(["probe-rs"])',
+    sha256 = "c2ccc46049e52a5d403ef212078cd637ecda55b662708327960558f83e851ff5",
+    strip_prefix = "probe-rs-tools-x86_64-unknown-linux-gnu",
+    url = "https://github.com/probe-rs/probe-rs/releases/download/v0.32.0/probe-rs-tools-x86_64-unknown-linux-gnu.tar.xz",
+)

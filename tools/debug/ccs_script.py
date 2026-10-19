@@ -4,9 +4,11 @@ import argparse
 import json
 import subprocess
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 from scripting import DebuggerScripting, ScriptingOptions, initScripting
 from scripting.generated_types.Scripting import DebugSession
@@ -38,6 +40,19 @@ HALT_POLL_INTERVAL_S = 0.005
 RESET_RETRY_DELAY_S = 0.1
 
 
+type ResetStep = Literal[
+    "remove_breakpoints",
+    "disconnect_cpu",
+    "disconnect_dap",
+    "disconnect_icepick",
+    "board_reset",
+    "connect_icepick",
+    "connect_dap",
+    "connect_cpu",
+    "halt",
+]
+
+
 @dataclass
 class CaseTimings:
     reset: float | None = None
@@ -61,6 +76,7 @@ class CaseObservation:
     phase: str | None = None
     timings_s: CaseTimings | None = None
     reset_errors: list[str] | None = None
+    reset_attempt_timings_s: list[dict[ResetStep, float]] | None = None
     timed_out: bool | None = None
     pc: int | None = None
     result: list[int] | None = None
@@ -129,32 +145,55 @@ def reset(session: DebugSession, result: CaseObservation, reset_tool: Path, prob
     MAX_ATTEMPTS = 2
     errors: list[str] = []
     result.reset_errors = errors
+    attempts: list[dict[ResetStep, float]] = []
+    result.reset_attempt_timings_s = attempts
+
+    @contextmanager
+    def measure(step: ResetStep) -> Generator[None]:
+        started = time.monotonic()
+        try:
+            yield
+        finally:
+            # Preserve the duration of a failing call as well as successful attempts.
+            timings[step] = time.monotonic() - started
+
     for attempt in range(MAX_ATTEMPTS):
+        timings: dict[ResetStep, float] = {}
+        attempts.append(timings)
         try:
             result.phase = "disconnect for board reset"
-            session.breakpoints.removeAll()
+            with measure("remove_breakpoints"):
+                session.breakpoints.removeAll()
             # TI cc26x4_xds.gel disconnects CPU, DAP, and ICEPick before board reset.
             cpu_disconnect = "DisconnectIfConnected()"
             dap_disconnect = on_parent(cpu_disconnect)
             icepick_disconnect = on_parent(dap_disconnect)
-            session.expressions.evaluate(cpu_disconnect)
-            session.expressions.evaluate(dap_disconnect)
-            session.expressions.evaluate(icepick_disconnect)
+            with measure("disconnect_cpu"):
+                session.expressions.evaluate(cpu_disconnect)
+            with measure("disconnect_dap"):
+                session.expressions.evaluate(dap_disconnect)
+            with measure("disconnect_icepick"):
+                session.expressions.evaluate(icepick_disconnect)
             result.phase = "board reset"
-            # Pulse nSRST using TI's utility; CCS Board Reset adds about 600 ms here.
-            subprocess.run(
-                [str(reset_tool), "--serial", probe, "--delay", "50"],
-                check=True,
-                timeout=5,
-            )
+            with measure("board_reset"):
+                # Pulse nSRST using TI's utility; CCS Board Reset adds about 600 ms here.
+                subprocess.run(
+                    [str(reset_tool), "--serial", probe, "--delay", "50"],
+                    check=True,
+                    timeout=5,
+                )
             result.phase = "reconnect after reset"
             # ICEPick's connect hook wakes the MCU domain before DAP access.
             dap_connect = on_parent("ConnectIfDisconnected()")
             icepick_connect = on_parent(dap_connect)
-            session.expressions.evaluate(icepick_connect)
-            session.expressions.evaluate(dap_connect)
-            session.target.connect()
-            session.target.halt()
+            with measure("connect_icepick"):
+                session.expressions.evaluate(icepick_connect)
+            with measure("connect_dap"):
+                session.expressions.evaluate(dap_connect)
+            with measure("connect_cpu"):
+                session.target.connect()
+            with measure("halt"):
+                session.target.halt()
             return
         except Exception as error:
             errors.append(str(error))
