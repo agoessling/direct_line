@@ -48,7 +48,7 @@ class Arguments(argparse.Namespace):
 
 def refresh_c_commands(root: Path) -> None:
     # Ensure generated translation units exist even on a fresh checkout.
-    _ = subprocess.run(
+    subprocess.run(
         ["bazel", "build", "--config=m33", "//foundation/...", "//firmware/..."],
         cwd=root,
         check=True,
@@ -80,18 +80,18 @@ def refresh_c_commands(root: Path) -> None:
         # CppCompile actions identify the translation unit with GCC's -c option.
         source = arguments[arguments.index("-c") + 1]
         commands.append({"directory": execution_root, "file": source, "arguments": arguments})
-    _ = (root / "compile_commands.json").write_text(json.dumps(commands, indent=2) + "\n")
+    (root / "compile_commands.json").write_text(json.dumps(commands, indent=2) + "\n")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    _ = parser.add_argument("--rustc", required=True)
-    _ = parser.add_argument("--project", required=True)
+    parser.add_argument("--rustc", required=True)
+    parser.add_argument("--project", required=True)
     args = Arguments()
-    _ = parser.parse_args(namespace=args)
+    parser.parse_args(namespace=args)
     rustc = str(Path(args.rustc).resolve())
     root = Path(os.environ["BUILD_WORKSPACE_DIRECTORY"])
-    _ = subprocess.run(
+    subprocess.run(
         [
             "bazel",
             "run",
@@ -113,7 +113,7 @@ def main() -> None:
     project["runnables"] = [
         item for item in project.get("runnables", []) if item.get("kind") != "flycheck"
     ]
-    _ = project_file.write_text(json.dumps(project, indent=2) + "\n")
+    project_file.write_text(json.dumps(project, indent=2) + "\n")
     metadata = cast(EditorMetadata, json.loads(Path(args.project).read_text()))
     assert runfiles.__file__ is not None
     metadata["rustc"] = rustc
@@ -125,7 +125,7 @@ def main() -> None:
     ]
     destination = root / ".tools" / "project.json"
     destination.parent.mkdir(exist_ok=True)
-    _ = destination.write_text(json.dumps(metadata, indent=2) + "\n")
+    destination.write_text(json.dumps(metadata, indent=2) + "\n")
     print(f"Wrote {project_file} and {destination}")
 
 

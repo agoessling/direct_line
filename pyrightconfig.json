@@ -10,5 +10,6 @@
   ],
   "pythonVersion": "3.14",
   "pythonPlatform": "Linux",
-  "typeCheckingMode": "recommended"
+  "typeCheckingMode": "recommended",
+  "reportUnusedCallResult": "none"
 }

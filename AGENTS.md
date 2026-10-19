@@ -230,8 +230,9 @@ Python 3.14 runs TI's typed API; CloudAgent/Node come from the same UniFlash pac
 `bazel run //tools/debug:hil -- --check-runtime` checks this runtime without accessing a board.
 Hardware runs identify, flash, verify, and execute one suite in a single CCS session, resetting between
 cases. Routine checks use one explicit board; use two for RF or occasional board/setup comparisons.
-The debugger stops after completed panic/fault diagnostic writes and captures full context only for
-unexpected outcomes or intentional panic/fault cases. Reports include host-side phase timings.
+Panic/fault cases wait for their deadline before the debugger halts and reads diagnostics. Full context
+is captured only for unexpected outcomes or intentional panic/fault cases. Reports include host-side
+phase timings.
 Event logging and RF remain subsequent milestones; UART electrical and external baud validation
 remain separate from the suite's internal loopback checks.
 Host layout/linked-CCFG tests, embedded compilation, and fresh clock/full-flash
@@ -256,7 +257,11 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 - `//firmware:hil_test` combines both clock variants, GPIO, four GPT assignments, four UART
   instances, and board bring-up. Dedicated pass/panic/UsageFault/timeout cases check the harness.
   The runner validates fresh request/result state and execution tokens on every reset, captures
-  diagnostics, writes JSON/JUnit reports, and fails on unexpected outcomes or debugger errors.
+  diagnostics, writes JSON reports, and fails on unexpected outcomes or debugger errors.
+- Register HIL cases once with `hil_tests!` in `firmware/hil_test.rs`; the macro in
+  `firmware/hil_registry.rs` generates metadata, IDs/counts, and function dispatch. Named suites
+  (`harness`, `drivers`, `integration`, `smoke`) select cases from the same image through `--suite`.
+  Repeated suites form a union; `--filter` narrows it. No suite option runs all cases.
 - See `docs/hardware_tests.md` for current validation status and measurement limits. Historical
   clock/full-flash evidence and the separate physical-power-cycle status remain in `firmware/STARTUP.md`.
 - TI setup now installs RF/SCE NONSECWR/NONSECDDIACC permissions. When RF drivers
@@ -271,15 +276,22 @@ sentences. Do not add coauthor or coding-agent attribution.
 
 ## Post-rebase tasks
 
+- On 2026-10-17, the macro-generated HIL registry passed all 16 cases and a separate three-case
+  `smoke` selection on `LS4500Q0`, with no reset retries. Linked-image discovery and suite selection
+  are covered by host tests; all 18 Bazel test targets and host/embedded lint/build checks passed.
 - The initial embedded-test framework is implemented. On 2026-10-12, all 16 cases passed freshly on
   both boards through one runner invocation, with no reset/reconnect retries. Strict Python checks,
   host tests, formatting/lint, and embedded builds passed. Keep physical power-on, external pin/baud
   accuracy, and future performance measurements separate from debugger-reset functional tests.
   See `docs/hardware_tests.md`.
 - On 2026-10-13, single-board HIL optimization reduced measured runtime from about 48.5 seconds
-  to 38.7 seconds on LS4500Q0. Both optimized runs passed all 16 cases without reset retries;
-  18 Bazel test targets and host/embedded lint/build checks passed. See the runtime profile in
-  `docs/hardware_tests.md`; host phase timings do not measure MCU instruction latency.
+  to 39.1 seconds on LS4500Q0. All 16 cases passed without reset retries; 18 Bazel test targets and
+  host/embedded lint/build checks passed. The experimental panic/fault terminal breakpoint was removed
+  to keep startup simpler. See `docs/hardware_tests.md`; host phase timings do not measure MCU latency.
+- On 2026-10-18, replacing CCS Board Reset with the already-pinned `xds110reset` 50 ms pin pulse
+  reduced the 16-case suite on `LS4500Q0` from 39.54 to 28.26 seconds, without reset retries. Keep
+  explicit probe selection, CPU/DAP/ICEPick disconnects, parent-first reconnects, and fresh-state
+  validation. CCS remains the production runner. See `docs/hardware_tests.md`.
 - Review code and comment wrapping repository-wide against the configured 100-column limit.
   Reflow unnecessarily narrow comments where it improves readability; do not extend every short line.
   Defer this cleanup until the current rebase is complete to avoid formatting-only merge conflicts.

@@ -14,7 +14,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
 
@@ -23,6 +23,10 @@ from python.runfiles import runfiles
 from tools.debug import process
 from tools.debug.elf import Elf
 from tools.debug.protocol import (
+    BOOT_DIAGNOSTIC_WORDS,
+    REQUEST_WORDS,
+    RESULT_WORDS,
+    WORD_BYTES,
     BoardResult,
     Case,
     CaseResult,
@@ -35,14 +39,31 @@ from tools.debug.protocol import (
 
 @dataclass
 class Arguments(argparse.Namespace):
-    dslite: Path | None = None
-    ccs_worker: Path | None = None
-    elf: Path | None = None
     probe: list[str] = field(default_factory=list)
+    suite: list[str] = field(default_factory=list)
     list: bool = False
     check_runtime: bool = False
     filter: str = "*"
     output_dir: Path | None = None
+
+
+def select_cases(cases: list[Case], suites: list[str], pattern: str) -> list[Case]:
+    """Select the union of named suites, then apply the case-name glob."""
+    known = {suite for case in cases for suite in case["suites"]}
+    unknown = set(suites) - known
+    if unknown:
+        raise ValueError(
+            f"Unknown suites: {', '.join(sorted(unknown))}; available: {', '.join(sorted(known))}"
+        )
+    selected = [
+        case
+        for case in cases
+        if (not suites or any(suite in case["suites"] for suite in suites))
+        and fnmatch.fnmatchcase(case["name"], pattern)
+    ]
+    if not selected:
+        raise ValueError("Suite/filter selection matched no cases")
+    return selected
 
 
 def read_report(path: Path) -> tuple[list[dict[str, object]], str | None, dict[str, str]]:
@@ -63,7 +84,9 @@ def read_report(path: Path) -> tuple[list[dict[str, object]], str | None, dict[s
         observations.append(cast(dict[str, object], case))
     errors = [str(raw[key]) for key in ("error", "cleanup_error", "stop_error") if raw.get(key)]
     identity: dict[str, str] = {}
-    raw_identity = raw.get("identity", {})
+    raw_identity = raw.get("identity")
+    if raw_identity is None:
+        raw_identity = {}
     if not isinstance(raw_identity, dict):
         raise ValueError("Invalid debugger identity object")
     for name, value in cast(dict[str, object], raw_identity).items():
@@ -86,8 +109,9 @@ def probe_lock(serial: str) -> Generator[None]:
         yield
 
 
-def run_debugger(args: RunConfig, request: Path | str, directory: Path, timeout: float) -> int:
-    command = [str(args.ccs_worker), str(args.dslite.parents[3]), str(request)]
+def run_debugger(args: RunConfig, request: Path | None, directory: Path, timeout: float) -> int:
+    command = [str(args.ccs_worker), "--ccs-root", str(args.dslite.parents[3])]
+    command += ["--check-runtime"] if request is None else ["--request", str(request)]
     try:
         return process.run(command, directory / "debugger.log", timeout)
     except subprocess.TimeoutExpired as error:
@@ -106,7 +130,7 @@ def config_for_probe(serial: str, destination: Path) -> None:
         "property", {"Type": "choicelist", "Value": "1", "id": "Debug Probe Selection"}
     )
     choice = ET.SubElement(selection, "choice", {"Name": "Select by serial number", "value": "0"})
-    _ = ET.SubElement(
+    ET.SubElement(
         choice,
         "property",
         {"Type": "stringfield", "Value": serial, "id": "-- Enter the serial number"},
@@ -129,15 +153,15 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
         for key, symbol, size in [
             ("ready", "hil_ready", None),
             ("done", "hil_done", None),
-            ("request", "HIL_REQUEST", 8),
-            ("result", "HIL_RESULT", 16),
-            ("diagnostic", "BOOT_DIAGNOSTIC", 28),
-            ("failure", "diagnostic_halt", None),
+            ("request", "HIL_REQUEST", REQUEST_WORDS * WORD_BYTES),
+            ("result", "HIL_RESULT", RESULT_WORDS * WORD_BYTES),
+            ("diagnostic", "BOOT_DIAGNOSTIC", BOOT_DIAGNOSTIC_WORDS * WORD_BYTES),
         ]
     }
-    _ = request.write_text(
+    request.write_text(
         json.dumps(
             dict(
+                probe=args.probe,
                 config=str(config),
                 elf=str(args.elf),
                 report=str(report),
@@ -165,7 +189,7 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
         )
         case_error = evaluate(case, observation, addresses["done"])
         results.append(
-            {**case, "passed": case_error is None, "error": case_error, "observation": observation}
+            CaseResult(case, passed=case_error is None, error=case_error, observation=observation)
         )
     return RunResult(
         duration_s=time.monotonic() - started,
@@ -176,36 +200,8 @@ def execute(args: RunConfig, elf: Elf, cases: list[Case], directory: Path) -> Ru
         passed=status == 0
         and len(observed) == len(selected)
         and not report_error
-        and all(case["passed"] for case in results),
+        and all(case.passed for case in results),
     )
-
-
-def junit(reports: list[BoardResult], destination: Path) -> None:
-    suite = ET.Element("testsuite", name="direct_line_hil")
-    for report in reports:
-        cases = report.get("cases", [])
-        for case in cases:
-            node = ET.SubElement(suite, "testcase", classname=report["probe"], name=case["name"])
-            if not case["passed"]:
-                _ = ET.SubElement(node, "failure", message=case["error"] or "Case failed")
-        if not report["passed"] and (
-            report.get("error")
-            or report.get("debugger_error")
-            or not cases
-            or all(case["passed"] for case in cases)
-        ):
-            node = ET.SubElement(suite, "testcase", classname=report["probe"], name="debugger")
-            _ = ET.SubElement(
-                node,
-                "error",
-                message=str(
-                    report.get("error") or report.get("debugger_error") or "Debugger failed"
-                ),
-            )
-    suite.set("tests", str(len(suite)))
-    suite.set("failures", str(len(suite.findall("testcase/failure"))))
-    suite.set("errors", str(len(suite.findall("testcase/error"))))
-    ET.ElementTree(suite).write(destination, encoding="utf-8", xml_declaration=True)
 
 
 def result_directory(path: Path | None, prefix: str) -> Path:
@@ -218,11 +214,12 @@ def result_directory(path: Path | None, prefix: str) -> Path:
 
 
 def provenance(dslite: Path, ccs_worker: Path) -> dict[str, str]:
-    """Record selected tool overrides as well as the default pinned executables."""
+    """Record the paths and hashes of the pinned executables."""
     result: dict[str, str] = {}
     for name, path in (
         ("dslite", dslite),
         ("ccs_worker", ccs_worker),
+        ("xds110reset", dslite.parents[2] / "common/uscif/xds110/xds110reset"),
         ("cloudagent_node", dslite.parents[2] / "cloudagent/node"),
     ):
         path = path.resolve(strict=True)
@@ -232,68 +229,55 @@ def provenance(dslite: Path, ccs_worker: Path) -> dict[str, str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     resolver = runfiles.Create()
 
-    def declared_path(name: str) -> Path | None:
+    def declared_path(name: str) -> Path:
         value = os.environ.get(name)
         if value is None:
-            return None
+            parser.error("Run through bazel run //tools/debug:hil")
         if resolver is None or (resolved := resolver.Rlocation(value)) is None:
             raise RuntimeError(f"Cannot resolve declared Bazel input {name}={value}")
         return Path(resolved).resolve(strict=True)
 
-    args = Arguments(
-        dslite=declared_path("DIRECT_LINE_DSLITE"),
-        ccs_worker=declared_path("DIRECT_LINE_CCS_WORKER"),
-        elf=declared_path("DIRECT_LINE_ELF"),
-    )
-    parser = argparse.ArgumentParser(description=__doc__)
-    _ = parser.add_argument(
-        "--dslite",
-        type=Path,
-        help="Override the pinned TI debugger (recorded in results)",
-    )
-    _ = parser.add_argument("--ccs-worker", type=Path)
-    _ = parser.add_argument(
+    parser.add_argument(
         "--probe",
         action="append",
         help="Explicit XDS110 serial; repeat for multiple boards",
     )
-    _ = parser.add_argument("--elf", type=Path)
-    _ = parser.add_argument(
+    parser.add_argument(
         "--list", action="store_true", help="List ELF cases without accessing a probe"
     )
-    _ = parser.add_argument(
+    parser.add_argument(
         "--check-runtime", action="store_true", help="Check CCS Scripting without a probe"
     )
-    _ = parser.add_argument("--filter", help="Case-name shell glob")
-    _ = parser.add_argument("--output-dir", type=Path)
-    _ = parser.parse_args(namespace=args)
+    parser.add_argument("--filter", help="Case-name shell glob")
+    parser.add_argument("--suite", action="append", help="Named suite; repeat to select a union")
+    parser.add_argument("--output-dir", type=Path)
+    args = parser.parse_args(namespace=Arguments())
     if workspace := os.environ.get("BUILD_WORKSPACE_DIRECTORY"):
         os.chdir(workspace)
-    if args.dslite is None:
-        parser.error("Use the Bazel target or provide --dslite")
-    if args.elf is None:
-        parser.error("Use the Bazel target or provide --elf")
-    args.elf = args.elf.resolve(strict=True)
-    image = args.elf.read_bytes()
+    elf_path = declared_path("DIRECT_LINE_ELF")
+    image = elf_path.read_bytes()
     elf = Elf(image)
-    cases = [case for case in elf.cases() if fnmatch.fnmatchcase(case["name"], args.filter)]
-    if not cases:
-        parser.error("Filter matched no cases")
+    try:
+        cases = select_cases(elf.cases(), args.suite, args.filter)
+    except ValueError as error:
+        parser.error(str(error))
     if args.list:
         for case in cases:
-            print(f"{case['name']} ({case['timeout_ms']} ms, expected={case['expected']})")
+            print(
+                f"{case['name']} ({case['timeout_ms']} ms, expected={case['expected']}, "
+                + f"suites={','.join(case['suites'])})"
+            )
         return 0
-    if args.ccs_worker is None:
-        parser.error("Use the Bazel target or supply --ccs-worker")
+    dslite = declared_path("DIRECT_LINE_DSLITE")
+    ccs_worker = declared_path("DIRECT_LINE_CCS_WORKER")
     if args.check_runtime:
         directory = result_directory(args.output_dir, "ccs-runtime")
         directory.mkdir(parents=True, exist_ok=True)
-        config = RunConfig(
-            "", args.elf, args.dslite.resolve(strict=True), args.ccs_worker.resolve(strict=True)
-        )
-        status = run_debugger(config, "--check-runtime", directory, 60)
+        config = RunConfig("", elf_path, dslite, ccs_worker)
+        status = run_debugger(config, None, directory, 60)
         print((directory / "debugger.log").read_text())
         print(f"Reports: {directory}")
         return status
@@ -304,39 +288,40 @@ def main() -> int:
     reports: list[BoardResult] = []
     probes = list(dict.fromkeys(args.probe))
     for probe in probes:
-        config = RunConfig(
-            probe, args.elf, args.dslite.resolve(strict=True), args.ccs_worker.resolve(strict=True)
-        )
+        config = RunConfig(probe, elf_path, dslite, ccs_worker)
         board_directory = directory / probe
         board_directory.mkdir(exist_ok=False)
         result: BoardResult = BoardResult(
             probe=probe,
             elf_sha256=hashlib.sha256(image).hexdigest(),
             tools=provenance(config.dslite, config.ccs_worker),
-            passed=False,
         )
         try:
             with probe_lock(probe):
-                result = {**result, **execute(config, elf, cases, board_directory)}
+                result.run = execute(config, elf, cases, board_directory)
         except (OSError, RuntimeError, ValueError, KeyError) as error:
-            result["error"] = str(error)
+            result.error = str(error)
         reports.append(result)
-        _ = (board_directory / "report.json").write_text(json.dumps(result, indent=2) + "\n")
-        for case in result.get("cases", []):
-            print(f"{probe} {'PASS' if case['passed'] else 'FAIL'} {case['name']}", flush=True)
-        if "duration_s" in result:
-            print(f"{probe} completed in {result['duration_s']:.2f}s", flush=True)
-        summary_error = result.get("error") or result.get("debugger_error")
-        if not summary_error:
-            summary_error = next(
-                (case["error"] for case in result.get("cases", []) if case["error"]), None
+        (board_directory / "report.json").write_text(json.dumps(asdict(result), indent=2) + "\n")
+        summary_error = result.error
+        if result.run is not None:
+            for case in result.run.cases:
+                print(
+                    f"{probe} {'PASS' if case.passed else 'FAIL'} {case.case['name']}", flush=True
+                )
+            print(f"{probe} completed in {result.run.duration_s:.2f}s", flush=True)
+            summary_error = (
+                summary_error
+                or result.run.debugger_error
+                or next((case.error for case in result.run.cases if case.error), None)
             )
         if summary_error:
             print(f"{probe} ERROR {summary_error}", flush=True)
-    _ = (directory / "report.json").write_text(json.dumps(reports, indent=2) + "\n")
-    junit(reports, directory / "junit.xml")
+    (directory / "report.json").write_text(
+        json.dumps([asdict(report) for report in reports], indent=2) + "\n"
+    )
     print(f"Reports: {directory}")
-    return 0 if all(report["passed"] for report in reports) else 1
+    return 0 if all(report.passed for report in reports) else 1
 
 
 if __name__ == "__main__":

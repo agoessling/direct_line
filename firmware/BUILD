@@ -111,6 +111,7 @@ rust_binary(
     srcs = _DEVICE_SOURCES + [
         "clock_test.rs",
         "gpio_test.rs",
+        "hil_registry.rs",
         "hil_test.rs",
         "timer_test.rs",
         "uart_test.rs",

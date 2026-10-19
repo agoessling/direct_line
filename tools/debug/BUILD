@@ -58,6 +58,8 @@ py_test(
     name = "hil_test",
     size = "small",
     srcs = _SOURCES + ["hil_test.py"],
+    data = [":hil_image"],
+    env = {"DIRECT_LINE_TEST_ELF": "$(rlocationpath :hil_image)"},
     main = "hil_test.py",
     deps = [
         "@python_deps//pyelftools",
