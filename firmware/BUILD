@@ -97,6 +97,7 @@ py_test(
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
     ],
+    deps = ["@python_deps//pyelftools"],
 )
 
 python_checks(
@@ -104,89 +105,45 @@ python_checks(
     srcs = ["ccfg_test.py"],
 )
 
+# Keep the upstream metadata linker fragment alongside the board's existing memory layout.
+genrule(
+    name = "embedded_test_linker",
+    srcs = [
+        "@embedded_test_crates//:linker_script",
+        "memory.ld",
+    ],
+    outs = ["embedded_test.ld"],
+    cmd = "cat $(execpath @embedded_test_crates//:linker_script) $(execpath memory.ld) > $@",
+)
+
 rust_binary(
-    name = "gpio_test",
-    srcs = ["gpio_test.rs"],
-    linker_script = "memory.ld",
+    name = "hil_test",
+    srcs = _DEVICE_SOURCES + [
+        "board_test.rs",
+        "clock_test.rs",
+        "gpio_test.rs",
+        "hil_test.rs",
+        "timer_test.rs",
+        "uart_test.rs",
+    ],
+    crate_root = "hil_test.rs",
+    link_deps = [
+        ":ti_rom",
+        "//firmware/config:ccfg",
+        "@ti_sdk//:setup",
+    ],
+    linker_script = ":embedded_test_linker",
+    rustc_flags = [
+        "-Cdebuginfo=2",
+        "--cfg=hil_test",
+    ],
     target_compatible_with = [
         "@platforms//cpu:armv8-m",
         "@platforms//os:none",
     ],
+    visibility = ["//tools/debug:__pkg__"],
     deps = [
-        ":device",
         ":registers",
+        "@embedded_test_crates//:embedded-test",
     ],
 )
-
-# Separate images test the first ROM switch with PRIMASK initially clear/set.
-[
-    rust_binary(
-        name = name,
-        srcs = [
-            "clock_test.rs",
-            "poll.rs",
-        ],
-        crate_features = features,
-        crate_root = "clock_test.rs",
-        linker_script = "memory.ld",
-        target_compatible_with = [
-            "@platforms//cpu:armv8-m",
-            "@platforms//os:none",
-        ],
-        deps = [
-            ":device",
-            ":registers",
-        ],
-    )
-    for name, features in [
-        ("clock_test", []),
-        (
-            "clock_test_masked",
-            ["masked_switch"],
-        ),
-    ]
-]
-
-# Each image assigns a different GPT as counter and the other three as interrupt timers.
-[
-    rust_binary(
-        name = "timer_test_gpt{}".format(index),
-        srcs = _DEVICE_SOURCES + ["timer_test.rs"],
-        crate_features = ["counter_gpt{}".format(index)],
-        crate_root = "timer_test.rs",
-        link_deps = [
-            ":ti_rom",
-            "//firmware/config:ccfg",
-            "@ti_sdk//:setup",
-        ],
-        linker_script = "memory.ld",
-        target_compatible_with = [
-            "@platforms//cpu:armv8-m",
-            "@platforms//os:none",
-        ],
-        deps = [":registers"],
-    )
-    for index in range(4)
-]
-
-# Exercise each UART on the debug-probe pins at a different baud using internal loopback.
-[
-    rust_binary(
-        name = "uart_test_uart{}".format(index),
-        srcs = _DEVICE_SOURCES + ["uart_test.rs"],
-        crate_features = ["uart{}".format(index)],
-        crate_root = "uart_test.rs",
-        link_deps = [
-            ":ti_rom",
-            "//firmware/config:ccfg",
-            "@ti_sdk//:setup",
-        ],
-        linker_script = "memory.ld",
-        target_compatible_with = [
-            "@platforms//cpu:armv8-m",
-            "@platforms//os:none",
-        ],
-        deps = [":registers"],
-    )
-    for index in range(4)
-]

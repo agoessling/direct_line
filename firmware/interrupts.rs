@@ -1,18 +1,57 @@
 //! CC1354P10 peripheral IRQ indices, excluding the 16 core vectors (TRM Table 5-2).
 //! Names follow the pinned SDK's cc13x4_cc26x4/inc/hw_ints.h, without the INT_ prefix.
 //! All 47 peripheral slots are assigned; there are no reserved gaps.
-//! Shared NVIC configuration for these peripheral interrupts lives here.
+//! Shared CPU interrupt masking and NVIC configuration live here.
 
 #![allow(dead_code)] // Keep the complete hardware map as drivers are added.
 
 use cc1354p10_registers as r;
 use core::arch::asm;
 
+/// Read PRIMASK: 1 masks configurable-priority exceptions; NMI and HardFault can still execute.
+#[inline(always)]
+pub(crate) fn primask() -> u32 {
+    let mask;
+    // SAFETY: architectural status read with no side effects.
+    unsafe { asm!("mrs {}, primask", out(reg) mask, options(nomem, nostack, preserves_flags)) };
+    mask
+}
+
+/// Mask configurable-priority exceptions. Does not mask NMI or HardFault.
+#[inline(always)]
+pub(crate) fn disable() {
+    // SAFETY: masking interrupts cannot expose uninitialized handler state.
+    // Omit nomem so memory accesses cannot move across the mask change.
+    unsafe { asm!("cpsid i", options(nostack, preserves_flags)) };
+}
+
+/// Save PRIMASK and mask configurable-priority exceptions until explicitly restored.
+#[inline(always)]
+pub(crate) fn save_and_disable() -> u32 {
+    let mask;
+    // SAFETY: reads and masks CPU interrupts; omitting nomem preserves compiler ordering.
+    unsafe {
+        asm!("mrs {}, primask", "cpsid i", out(reg) mask, options(nostack, preserves_flags));
+    }
+    mask
+}
+
+/// Restore a previously saved PRIMASK without unconditionally enabling interrupts.
+///
+/// # Safety
+/// The mask must come from this execution context. Any handlers it unmasks must remain valid,
+/// and all state they access must be ready before restoration.
+#[inline(always)]
+pub(crate) unsafe fn restore(mask: u32) {
+    // SAFETY: caller ensures restoring the saved mask can safely resume handlers.
+    unsafe { asm!("msr primask, {}", in(reg) mask, options(nostack, preserves_flags)) };
+}
+
 /// Unmask CPU interrupts after peripheral and vector initialization.
 ///
 /// # Safety
 /// All enabled interrupt sources must have valid handlers and initialized handler state.
-#[inline]
+#[inline(always)]
 pub(crate) unsafe fn enable() {
     // SAFETY: caller has finished initializing everything reachable from an enabled ISR.
     unsafe { asm!("cpsie i", options(nostack, preserves_flags)) };

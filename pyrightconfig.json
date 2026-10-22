@@ -1,0 +1,15 @@
+{
+  "include": [
+    "firmware",
+    "tools"
+  ],
+  "exclude": [
+    "bazel-*",
+    "**/.*",
+    "**/__pycache__"
+  ],
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "recommended",
+  "reportUnusedCallResult": "none"
+}

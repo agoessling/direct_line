@@ -1,9 +1,32 @@
+load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load(":checks.bzl", "python_checks")
 
 exports_files([
     "checks.bzl",
     "c_format.sh",
 ])
+
+py_binary(
+    name = "basedpyright",
+    srcs = ["basedpyright.py"],
+    data = [
+        "//:pyrightconfig.json",
+        "@basedpyright//:index.js",
+        "@basedpyright//:runtime",
+        "@ti_sysconfig//:sysconfig/nodejs/node",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@python_deps//pyelftools",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+python_checks(
+    name = "python",
+    srcs = ["basedpyright.py"],
+)
 
 # These launchers support explicit files and stdin. They do not discover files.
 sh_binary(

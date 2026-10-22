@@ -54,8 +54,16 @@ rust_host.host_tools(
 use_repo(rust_host, rust_host_tools = "direct_line_rust_tools")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.toolchain(python_version = "3.12")
-use_repo(python, "python_3_12")
+python.toolchain(python_version = "3.14")
+use_repo(python, "python_3_14")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "python_deps",
+    python_version = "3.14",
+    requirements_lock = "//third_party/python:requirements_lock.txt",
+)
+use_repo(pip, "python_deps")
 
 bazel_dep(name = "reg_def", version = "0.1.0")
 git_override(
@@ -76,6 +84,18 @@ http_file(
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
+    name = "basedpyright",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["index.js"])
+filegroup(name = "runtime", srcs = glob(["**"]))
+""",
+    integrity = "sha512-7ijtpTtV3E3r5Lvv8GV0HfOyRrtDdLOj+xA4q3vv1Mg03F8k/vIBXSVLOQ7X5oNI52kFqiMQehhr8RS0CSP59w==",
+    strip_prefix = "package",
+    url = "https://registry.npmjs.org/basedpyright/-/basedpyright-1.39.9.tgz",
+)
+
+http_archive(
     name = "ti_sdk",
     build_file = "//third_party/ti:sdk.BUILD.bazel",
     sha256 = "f35cb6818302e986af4dc39849ee2ab63684e1c66586d9e864fd11408ead10ed",
@@ -86,3 +106,34 @@ http_archive(
 sysconfig_repository = use_repo_rule("//third_party/ti:repositories.bzl", "sysconfig_repository")
 
 sysconfig_repository(name = "ti_sysconfig")
+
+# Pinned Linux debugger for explicit hardware tests.
+http_archive(
+    name = "probe_rs",
+    build_file_content = 'exports_files(["probe-rs"])',
+    sha256 = "c2ccc46049e52a5d403ef212078cd637ecda55b662708327960558f83e851ff5",
+    strip_prefix = "probe-rs-tools-x86_64-unknown-linux-gnu",
+    url = "https://github.com/probe-rs/probe-rs/releases/download/v0.32.0/probe-rs-tools-x86_64-unknown-linux-gnu.tar.xz",
+)
+
+probe_rs_targets = use_repo_rule("//third_party/probe_rs:repositories.bzl", "probe_rs_targets")
+
+probe_rs_targets(name = "probe_rs_targets")
+
+# Firmware test framework and its host procedural macros.
+embedded_test_crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+embedded_test_crate.from_cargo(
+    name = "embedded_test_crates",
+    cargo_lockfile = "//third_party/embedded_test:Cargo.lock",
+    manifests = ["//third_party/embedded_test:Cargo.toml"],
+    supported_platform_triples = [
+        "thumbv8m.main-none-eabihf",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+embedded_test_crate.annotation(
+    additive_build_file_content = 'exports_files(["embedded-test.x"])',
+    crate = "embedded-test-linker-script",
+    extra_aliased_targets = {"linker_script": "embedded-test.x"},
+)
+use_repo(embedded_test_crate, "embedded_test_crates")

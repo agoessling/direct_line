@@ -7,7 +7,8 @@ required for the initial milestones.
 
 The standalone image initializes memory, factory trim, clocks, GPIO, timers, and polling UART0
 at 115200 8N1. It reports bring-up checks over serial, then echoes received bytes while blinking
-both LEDs on timer events. Board runners, logging, and RF remain later milestones.
+both LEDs on timer events. An embedded-test suite runs through probe-rs and the XDS110 debugger;
+logging and RF remain later milestones.
 Required silicon initialization uses the pinned TI SDK behind one Rust FFI call; see the
 [startup audit](firmware/STARTUP.md). The earlier C++ firmware remains in history.
 
@@ -19,4 +20,6 @@ tools/quality/check
 bazel run //tools/metadata:refresh
 ```
 
-See [development instructions](docs/development.md) and [project direction](AGENTS.md).
+Run the board tests with `bazel run //tools/debug:hil -- --probe LS4500Q0`. See
+[hardware testing](docs/hardware_tests.md), [development instructions](docs/development.md), and
+[project direction](AGENTS.md).

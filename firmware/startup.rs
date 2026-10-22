@@ -154,7 +154,9 @@ unsafe extern "C" {
     fn main() -> !;
 }
 
-const DIAGNOSTIC_MAGIC: u32 = 0x444c_5253;
+// Debugger-visible boot and terminal-stage markers.
+const BOOT_DIAGNOSTIC_MAGIC: u32 = 0x444c_5253; // "DLRS".
+const STAGE_RESET: u32 = 0;
 const STAGE_TRIM: u32 = 1;
 const STAGE_APPLICATION: u32 = 2;
 const STAGE_FAULT: u32 = 0xffff_0001;
@@ -198,7 +200,7 @@ struct PanicDetails {
 
 const EMPTY_DIAGNOSTIC: BootDiagnostic = BootDiagnostic {
     magic: 0,
-    stage: 0,
+    stage: STAGE_RESET,
     details: DiagnosticDetails {
         fault: FaultDetails {
             exception: 0,
@@ -251,7 +253,7 @@ unsafe extern "C" fn rust_start() -> ! {
         // Start a fresh boot record; volatile stores keep each stage visible to JTAG.
         let diagnostic = &raw mut BOOT_DIAGNOSTIC;
         diagnostic.write_volatile(EMPTY_DIAGNOSTIC);
-        (&raw mut (*diagnostic).magic).write_volatile(DIAGNOSTIC_MAGIC);
+        (&raw mut (*diagnostic).magic).write_volatile(BOOT_DIAGNOSTIC_MAGIC);
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_TRIM);
 
         // Board defaults: finish LF selection and start RTC before entering main.
@@ -269,7 +271,7 @@ unsafe extern "C" fn capture_fault(exception: u32) -> ! {
     // architectural fault status. No application memory references are created.
     unsafe {
         let diagnostic = &raw mut BOOT_DIAGNOSTIC;
-        (&raw mut (*diagnostic).magic).write_volatile(DIAGNOSTIC_MAGIC);
+        (&raw mut (*diagnostic).magic).write_volatile(BOOT_DIAGNOSTIC_MAGIC);
         // CFSR/HFSR/MMFAR/BFAR: TRM 2.5.5.11/.12/.14/.15.
         // Address values are meaningful only when CFSR's corresponding VALID bit is set.
         // Individual stores avoid a volatile aggregate's temporary stack copy.
@@ -281,10 +283,7 @@ unsafe extern "C" fn capture_fault(exception: u32) -> ! {
         (&raw mut (*fault).bfar).write_volatile(r::CPU_SCB.bfar.read().bits());
         // Mark the terminal stage after writing its payload; the record is not atomic.
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_FAULT);
-        // Park for inspection. WFI may wake, so loop rather than resuming the application.
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        park();
     }
 }
 
@@ -292,9 +291,9 @@ unsafe extern "C" fn capture_fault(exception: u32) -> ! {
 fn panic(info: &PanicInfo<'_>) -> ! {
     // Panics use the current stack; unlike FaultEntry, this is an ordinary Rust call.
     // SAFETY: terminal failure; stop all ordinary ISR mutation and leave a
-    // debugger-readable marker. No formatting, allocation or breakpoint needed.
+    // debugger-readable marker without formatting or allocation.
     unsafe {
-        asm!("cpsid i", options(nostack, preserves_flags));
+        crate::interrupts::disable();
         let diagnostic = &raw mut BOOT_DIAGNOSTIC;
         let mut details = PanicDetails {
             line: 0,
@@ -310,7 +309,7 @@ fn panic(info: &PanicInfo<'_>) -> ! {
             details.filename_address = location.file().as_ptr() as u32;
             details.filename_length = location.file().len() as u32;
         }
-        (&raw mut (*diagnostic).magic).write_volatile(DIAGNOSTIC_MAGIC);
+        (&raw mut (*diagnostic).magic).write_volatile(BOOT_DIAGNOSTIC_MAGIC);
         let panic = &raw mut (*diagnostic).details.panic;
         (&raw mut (*panic).line).write_volatile(details.line);
         (&raw mut (*panic).column).write_volatile(details.column);
@@ -318,9 +317,22 @@ fn panic(info: &PanicInfo<'_>) -> ! {
         (&raw mut (*panic).filename_length).write_volatile(details.filename_length);
         (&raw mut (*panic).reserved).write_volatile(0);
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_PANIC);
+
+        // Hardware tests report panic completion through semihosting.
+        #[cfg(hil_test)]
+        embedded_test::export::hosting::abort();
+
         // Leave the record intact for JTAG; no unwind or reset.
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        #[cfg(not(hil_test))]
+        park();
+    }
+}
+
+/// Park for debugger inspection after a terminal failure; WFI may wake, so keep waiting.
+#[inline(always)]
+fn park() -> ! {
+    loop {
+        // SAFETY: waiting does not access memory; callers never resume application execution.
+        unsafe { asm!("wfi", options(nomem, nostack)) };
     }
 }
