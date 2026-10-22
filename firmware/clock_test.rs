@@ -3,18 +3,9 @@
 #[embedded_test::tests(default_timeout = 3)]
 mod clock {
     use crate::device::Board;
+    use crate::interrupts;
     use crate::poll::wait_for;
     use cc1354p10_registers as r;
-    use core::arch::asm;
-
-    fn primask() -> u32 {
-        let value;
-        // SAFETY: architectural status read; no memory or processor state changes.
-        unsafe {
-            asm!("mrs {}, primask", out(reg) value, options(nomem, nostack, preserves_flags))
-        };
-        value
-    }
 
     fn run(masked_switch: bool, boot_rtc_seconds: u32) {
         let mut board = Board::take().unwrap();
@@ -46,18 +37,19 @@ mod clock {
 
             // Each case checks that the first switch preserves its initial interrupt mask.
             if masked_switch {
-                asm!("cpsid i", options(nostack, preserves_flags));
+                interrupts::disable();
             }
-            let before = primask();
+            let before = interrupts::primask();
+            assert_eq!(before, u32::from(masked_switch));
             assert!(board.clocks.try_switch_to_hf_crystal());
-            assert_eq!(primask(), before);
+            assert_eq!(interrupts::primask(), before);
             // The completed switch selects HF XOSC and returns DC/DC to automatic clock selection.
             assert!(r::AUX_DDI0_OSC.stat0.read().sclk_hf_src());
             assert!(!r::AUX_DDI0_OSC.ctl0.read().clk_dcdc_src_sel());
-            asm!("cpsie i", options(nostack, preserves_flags));
+            interrupts::enable();
             // Already-active path must be harmless and preserve the unmasked state.
             assert!(board.clocks.try_switch_to_hf_crystal());
-            assert_eq!(primask(), 0);
+            assert_eq!(interrupts::primask(), 0);
 
             // Observe RTC progress relative to the sample taken before crystal startup.
             let mut elapsed = 0;

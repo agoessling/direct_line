@@ -23,6 +23,7 @@ m33_artifact(
 
 _SOURCES = [
     "hil.py",
+    "output.py",
     "probe_lock.py",
 ]
 

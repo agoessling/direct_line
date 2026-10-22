@@ -283,10 +283,7 @@ unsafe extern "C" fn capture_fault(exception: u32) -> ! {
         (&raw mut (*fault).bfar).write_volatile(r::CPU_SCB.bfar.read().bits());
         // Mark the terminal stage after writing its payload; the record is not atomic.
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_FAULT);
-        // Park for inspection. WFI may wake, so loop rather than resuming the application.
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        park();
     }
 }
 
@@ -296,7 +293,7 @@ fn panic(info: &PanicInfo<'_>) -> ! {
     // SAFETY: terminal failure; stop all ordinary ISR mutation and leave a
     // debugger-readable marker without formatting or allocation.
     unsafe {
-        asm!("cpsid i", options(nostack, preserves_flags));
+        crate::interrupts::disable();
         let diagnostic = &raw mut BOOT_DIAGNOSTIC;
         let mut details = PanicDetails {
             line: 0,
@@ -320,14 +317,22 @@ fn panic(info: &PanicInfo<'_>) -> ! {
         (&raw mut (*panic).filename_length).write_volatile(details.filename_length);
         (&raw mut (*panic).reserved).write_volatile(0);
         (&raw mut (*diagnostic).stage).write_volatile(STAGE_PANIC);
+
         // Hardware tests report panic completion through semihosting.
         #[cfg(hil_test)]
         embedded_test::export::hosting::abort();
 
         // Leave the record intact for JTAG; no unwind or reset.
         #[cfg(not(hil_test))]
-        loop {
-            asm!("wfi", options(nomem, nostack));
-        }
+        park();
+    }
+}
+
+/// Park for debugger inspection after a terminal failure; WFI may wake, so keep waiting.
+#[inline(always)]
+fn park() -> ! {
+    loop {
+        // SAFETY: waiting does not access memory; callers never resume application execution.
+        unsafe { asm!("wfi", options(nomem, nostack)) };
     }
 }

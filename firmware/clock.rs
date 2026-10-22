@@ -1,9 +1,8 @@
 //! Fixed 48 MHz HF and 32.768 kHz LF crystals; CPU boots on RCOSC HF.
 //! Sequence rationale follows TI SDK 8.33 setup.c, setup_rom.c and osc.h.
-use crate::ddi;
 use crate::poll::wait_for;
+use crate::{ddi, interrupts};
 use cc1354p10_registers as r;
-use core::arch::asm;
 
 /// RCOSC HF and the board's HF crystal both nominally supply 48 MHz.
 pub(crate) const HF_CLOCK_HZ: u32 = 48_000_000;
@@ -78,8 +77,7 @@ impl Clocks {
                 return false;
             }
 
-            let primask: u32;
-            asm!("mrs {}, primask", "cpsid i", out(reg) primask, options(nostack, preserves_flags));
+            let primask = interrupts::save_and_disable();
             // TI OSCHfSourceSwitch: a switch can stretch the clock high or low
             // for several cycles. A coincident flash read may freeze the device,
             // so the switch itself executes in ROM and returns only when done.
@@ -87,7 +85,7 @@ impl Clocks {
             ti_hf_source_safe_switch();
             // Return DC/DC to automatic selection only after the HF switch.
             ddi::clear_bits(r::AUX_DDI0_OSC.ctl0.address(), CLK_DCDC_SRC_SEL);
-            asm!("msr primask, {}", in(reg) primask, options(nostack, preserves_flags));
+            interrupts::restore(primask);
             true
         }
     }

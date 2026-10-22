@@ -277,6 +277,9 @@ boot/fault state and `BLINK_COUNT` reports application progress to a debugger.
 - Previous C++ baseline: `8186f5e`; use Git history for reference.
 - Hardware runs must remain explicit and uncached. Raw results belong in ignored
   `.results/` directories, not source control.
+- The HIL runner streams readable test status and diagnostics live, with native flash bars on a
+  terminal. It saves stdout, stderr, and a copy of target logs separately; malformed JSON event
+  records fail the run. See `tools/debug/output.py` for bounded process streaming and cleanup.
 
 When commits are requested, keep messages concise, with at most four body
 sentences. Do not add coauthor or coding-agent attribution.

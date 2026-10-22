@@ -59,9 +59,33 @@ the invocation. HardFault or debugger errors can abort the whole invocation inst
 failed-case summary. Each case has a deadline, and the host bounds the entire process to 180 seconds.
 
 The small Python wrapper validates a completed, nonempty passing suite rather than relying only on
-probe-rs's exit status. It saves the console transcript and a JSON report containing the image hash,
-probe, command, duration, exit status, and suite counts under ignored `.results/`. Use `--output-dir`
-to choose a new directory beneath `.results/`. Keep raw reports out of version control.
+probe-rs's exit status. Test status and diagnostics appear live. Terminal runs show probe-rs's native
+flash progress bars; redirected runs use plain output without bars. A small stderr-only pseudo-terminal
+preserves native progress rendering while stdout remains a separate test-event stream.
+Test labels and suite outcomes use cyan for running, green for passing, red for failure, and yellow
+for skipped cases. The report path is highlighted and elapsed time is dimmed. Wrapper colors are
+disabled for redirected streams, `TERM=dumb`, or a nonempty `NO_COLOR` environment variable.
+
+Each run saves these files under ignored `.results/`:
+
+- `stdout.txt`: original test events and any debugger stack traces.
+- `stderr.txt`: debugger diagnostics, including terminal control sequences when bars are enabled.
+- `target.txt`: a copy of target logging through probe-rs's `--target-output-file` option.
+- `report.json`: image hash, probe, command, duration, exit status, suite counts, and errors.
+
+Ordinary failed tests are recorded in the suite counts and return a nonzero exit status. The report's
+`error` field describes runner failures, such as timeouts, malformed output, or unexpected process
+exits; it is null for a completed failed suite with the expected exit status. The wrapper does not
+repeat that exit status as an additional error message.
+
+Probe-rs 0.32 emits test events using libtest-mimic's JSON-lines format. The parser validates the
+event kinds and suite counts, rejects malformed JSON-looking records, and permits plain debugger
+stack traces. Upstream also prints target logs to the console; the file option copies rather than
+redirects them. Reserve JSON-looking stdout lines for test events; use plain text for target logs.
+A parsing error fails the run even if probe-rs exits successfully. Listing uses the
+upstream plain-text list instead. See the pinned
+[probe-rs CLI integration](https://github.com/probe-rs/probe-rs/blob/v0.32.0/probe-rs-tools/src/bin/probe-rs/cmd/run.rs).
+Use `--output-dir` to choose a new directory beneath `.results/`. Keep raw reports out of version control.
 
 Tests leave the suite installed on the board. The standalone application remains `//firmware:bringup`.
 
