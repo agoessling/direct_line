@@ -286,6 +286,11 @@ sentences. Do not add coauthor or coding-agent attribution.
 
 ## Validation and follow-up
 
+- **2026-10-23:** the user ordered a Digital Discovery for external UART latency measurements.
+  See [the fixture handoff](docs/uart_latency_fixture.md) for proposed eight-output/sixteen-input
+  wiring, finite DDR playback/capture budgets, sampling qualification, SDK/Bazel integration, and
+  bring-up steps. Hardware has not arrived or been validated. Keep JTAG connected and plan to route
+  test UARTs away from the debugger's DIO12/13 connection. Final MCU pin assignments remain open.
 - The production migration passed all fourteen normal cases freshly on `LS4500Q0`, with forced
   programming and preverified unchanged flash. All four negative controls failed as intended,
   an unmatched filter failed, and the suite passed again after the terminal cases. The corrected

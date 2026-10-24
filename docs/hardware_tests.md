@@ -124,6 +124,10 @@ execution, and cleanup. It excludes Bazel analysis/compilation and does not meas
 latency. Physical power-on, sleep recovery, electrical accuracy, and performance benchmarks remain
 separate work.
 
+The planned [Digital Discovery UART fixture](uart_latency_fixture.md) will provide external byte
+timestamps and end-to-end latency measurements. The device has been ordered; that workflow is not
+implemented or validated yet. Its handoff covers wiring, capture budgets, and staged qualification.
+
 ## Migration evidence and timing
 
 The production migration passed all fourteen normal cases freshly on `LS4500Q0`, both after forced
